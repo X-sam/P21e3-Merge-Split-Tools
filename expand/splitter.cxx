@@ -60,7 +60,7 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	child->usedin(search_domain, search_att, &parents);
 	for (k = 0, sz = parents.size(); k < sz; k++){
 		RoseObject * parent = parents.get(k);
-		if (!rose_is_marked(parent)){ //if parent is not marked then it is not a child of the object being split and needs to stay
+		if (!rose_is_marked(parent) ){ //if parent is not marked then it is not a child of the object being split and needs to stay
 			rose_mark_clear(child);
 			return false;
 		}
@@ -69,6 +69,7 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	return true;
 }
 
+int PutOut(RoseObject * obj, RoseDesign * master, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
 int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
@@ -91,7 +92,7 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 		}
 		else{ continue; }
 	}
-	std::string refURI = std::string(prod->id() + std::string(".stp#") + prod->id() + std::to_string(nthObj)); //uri for created reference to prod/obj
+	std::string refURI = std::string(prod->id() + std::string(".stp#") + prod->id());//+ std::to_string(nthObj)); //uri for created reference to prod/obj
 	ProdOut->addName((prod->id() + std::to_string(nthObj)).c_str(), prod); //add anchor to ProdOut
 
 	//make reference to prodout file from master
@@ -120,9 +121,11 @@ int split(RoseDesign * master){		//, std::string type){
 	std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		//stp_product * prod = ROSE_CAST(stp_product, obj);
+		PutOut(obj, master, objCounter);
 		PutOut(obj, objCounter);
 		objCounter++;
 	}
+	rose_empty_trash();
 	master->save(); //save changes to master
 	return 0;
 }
@@ -141,6 +144,6 @@ int main(int argc, char* argv[])
 	origional->saveAs("SplitOutput.stp");
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
 	split(master);
-	rose_empty_trash();
+	
     return 0;
 }
