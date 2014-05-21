@@ -69,7 +69,7 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	return true;
 }
 
-int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
+int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	stp_product * old_prod = prod;
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
@@ -110,7 +110,7 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
 		RoseObject *child = children->get(i);
 		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
-			std::cout << "Moving " << child->entity_id() << " to trash\n";
+			std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
 			rose_move_to_trash(child);
 		}
 		else{ continue; }
@@ -127,7 +127,7 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 	RoseAttribute * ParentAtt = refParents.get(0);
 	for (unsigned int i = 1; i < refParents.size(); i++){
 		ParentAtt = refParents.get(i);
-		rose_put_ref(ref, obj, ParentAtt);
+		rose_put_ref(ref, obj, ParentAtt, i);
 	}
 	ProdOut->save(); //save ProdOut as prod->id().stp
 
@@ -138,7 +138,7 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 	//-Use putobject to put the reference in the place of the old product info
 	//-Put obj in trash
 	//-Empty trash
-	//should prod be looked for in the new design after it's created?
+	rose_move_to_trash(obj);
 	delete ProdOut;
 	return 0;
 }
@@ -147,17 +147,15 @@ int split(RoseDesign * master){		//, std::string type){
 	//traverse to find obj that match type
 	RoseCursor cursor;
 	RoseObject * obj;
-	unsigned int objCounter = 0;
 	cursor.traverse(master);
 	cursor.domain(ROSE_DOMAIN(stp_product));
 	std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		//stp_product * prod = ROSE_CAST(stp_product, obj);
-		PutOut(obj, objCounter);
-		objCounter++;
+		PutOut(obj);
 	}
-	rose_empty_trash();
 	master->save(); //save changes to master
+	rose_empty_trash();
 	return 0;
 }
 
