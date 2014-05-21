@@ -85,13 +85,18 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	cursor.domain(ROSE_DOMAIN(stp_product));
 	RoseObject * obj2;
 	std::cout << cursor.size() << std::endl;
-	while (obj2 = cursor.next())	{
-		stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
-		std::string forComp = tmpProd->name(); //allows use of .compare
-		if ( forComp.compare( (prod->name() ) ) == 0){
-			prod = tmpProd;
-			break;
+	if (cursor.size() > 1){
+		while (obj2 = cursor.next())	{
+			stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
+			std::string forComp = tmpProd->name(); //allows use of .compare
+			if (forComp.compare((prod->name())) == 0){
+				prod = tmpProd;
+				break;
+			}
 		}
+	}
+	else{
+		prod = ROSE_CAST(stp_product, cursor.next());
 	}
 	///
 	printf("\t%d\n", prod->entity_id());
@@ -124,10 +129,11 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	search_domain = ROSE_DOMAIN(RoseObject); //find usage of obj and replace it with ref
 	search_att = search_domain->findTypeAttribute("owner");
 	obj->usedin(search_domain, search_att, &refParents);
-	RoseAttribute * ParentAtt = refParents.get(0);
-	for (unsigned int i = 1; i < refParents.size(); i++){
+	RoseAttribute * ParentAtt;
+	unsigned int n = refParents.size();
+	for (unsigned int i = 0; i < n; i++){
 		ParentAtt = refParents.get(i);
-		rose_put_ref(ref, obj, ParentAtt, i);
+		rose_put_ref(ref, obj, ParentAtt);
 	}
 	ProdOut->save(); //save ProdOut as prod->id().stp
 
@@ -149,7 +155,7 @@ int split(RoseDesign * master){		//, std::string type){
 	RoseObject * obj;
 	cursor.traverse(master);
 	cursor.domain(ROSE_DOMAIN(stp_product));
-	std::cout << cursor.size() << std::endl;
+	//std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		//stp_product * prod = ROSE_CAST(stp_product, obj);
 		PutOut(obj);
@@ -166,7 +172,7 @@ int main(int argc, char* argv[])
 //    rose_p28_init();	// support xml read/write
 	FILE *out;
 	out=fopen("log.txt","w");
-	ROSE.error_reporter()->error_file(out);
+	//ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	
 	/* Create a RoseDesign to hold the output data*/
