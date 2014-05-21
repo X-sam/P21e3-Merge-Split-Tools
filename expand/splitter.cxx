@@ -92,7 +92,7 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 		else{ continue; }
 	}
 	std::string refURI = std::string(prod->id() + std::string(".stp#") + prod->id());//+ std::to_string(nthObj)); //uri for created reference to prod/obj
-	ProdOut->addName((prod->id() + std::to_string(nthObj)).c_str(), prod); //add anchor to ProdOut
+	ProdOut->addName(prod->id(), prod); //add anchor to ProdOut
 
 	//make reference to prodout file from master
 	RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str()); 
