@@ -69,7 +69,7 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	return true;
 }
 
-int PutOut(RoseObject * obj, RoseDesign * master, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
+int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
 	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
@@ -82,9 +82,11 @@ int PutOut(RoseObject * obj, RoseDesign * master, const unsigned int &nthObj){ /
 		if (rose_is_marked(child)){ continue; }
 		else{ rose_mark_set(child); }
 	}
+	std::cout << "Children to parse: " << children->size() <<std::endl;
 	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
 		RoseObject *child = children->get(i);
 		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
+			std::cout << "Moving " << child->entity_id() << " to trash\n";
 			rose_move_to_trash(child);
 		}
 		else{ continue; }
@@ -99,7 +101,11 @@ int PutOut(RoseObject * obj, RoseDesign * master, const unsigned int &nthObj){ /
 
 	rose_mark_end();
 	
-	
+	//TODO:
+	//-Make a list of places where obj (a product) is used in
+	//-Use putobject to put the reference in the place of the old product info
+	//-Put obj in trash
+	//-Empty trash
 	delete ProdOut;
 	return 0;
 }
@@ -114,7 +120,7 @@ int split(RoseDesign * master){		//, std::string type){
 	std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		//stp_product * prod = ROSE_CAST(stp_product, obj);
-		PutOut(obj, master, objCounter);
+		PutOut(obj, objCounter);
 		objCounter++;
 	}
 	master->save(); //save changes to master
