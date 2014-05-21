@@ -35,7 +35,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="scan.cxx" />
     <ClCompile Include="STEPSplit.cxx" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="scan.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <Keyword>Win32Proj</Keyword>

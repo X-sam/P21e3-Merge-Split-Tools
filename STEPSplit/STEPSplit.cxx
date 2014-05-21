@@ -8,7 +8,10 @@
 #include <map>
 #include <iostream>
 #include <cstdio>
-std::map<std::string, int> translated;
+
+#include "scan.h"
+
+//std::map<std::string, int> translated;
 
 //Takes object, puts itself and all of its children in the output design
 int PutItem(RoseObject *obj, RoseDesign* output)
@@ -77,7 +80,11 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 	for (unsigned int i = 0; i < attributes->size(); i++)
 	{
 		Att = attributes->get(i);
-		if (!Att->isEntity()) continue;	//If it isn't an entity it won't have an entity ID
+		if (!Att->isEntity())
+		{
+			if(!Att->isAggregate()) continue;	//If it isn't an entity or an enumeration, ignore it.
+				
+		}
 		std::cout << "\tAttribute #" << i << " Entity ID: " << ROSE_CAST(RoseObject, Att)->entity_id() << std::endl;
 		if(Att->entity_id() == Attributee->entity_id()) return Att;
 	}
@@ -91,7 +98,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	ListOfRoseObject refParents;
 	RoseDomain * search_domain;
 	RoseAttribute * search_att;
-
+	
 	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->save();
 	//find prod in new design
@@ -140,8 +147,11 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 
 	//make reference to prodout file from master
 	RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str()); 
-
-	search_domain = ROSE_DOMAIN(RoseObject); //find usage of obj and replace it with ref
+	ref->resolved(obj);
+	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
+	URIManager = MyURIManager::make(obj);
+	URIManager->should_go_to_uri(ref);
+/*	search_domain = ROSE_DOMAIN(RoseObject); //find usage of obj and replace it with ref
 	search_att = search_domain->findTypeAttribute("owner");
 	obj->usedin(NULL, NULL, &refParents);
 	RoseObject * Parent;
@@ -152,7 +162,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		ParentAtt = FindAttribute(Parent,obj);
 		if (!ParentAtt) continue;	//Doesn't have the attribute so I guess we can skip it?
 		rose_put_ref(ref, obj, ParentAtt);
-	}
+	}*/
 	ProdOut->save(); //save ProdOut as prod->id().stp
 
 	rose_mark_end();
@@ -162,7 +172,6 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	//-Use putobject to put the reference in the place of the old product info
 	//-Put obj in trash
 	//-Empty trash
-	rose_move_to_trash(obj);
 	delete ProdOut;
 	return 0;
 }
@@ -171,13 +180,16 @@ int split(RoseDesign * master){		//, std::string type){
 	//traverse to find obj that match type
 	RoseCursor cursor;
 	RoseObject * obj;
+	
 	cursor.traverse(master);
 	cursor.domain(ROSE_DOMAIN(stp_product));
 	//std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		//stp_product * prod = ROSE_CAST(stp_product, obj);
 		PutOut(obj);
+		rose_move_to_trash(obj);
 	}
+	update_uri_forwarding(master);
 	master->save(); //save changes to master
 	rose_empty_trash();
 	return 0;
