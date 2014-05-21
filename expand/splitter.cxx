@@ -71,8 +71,30 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 
 int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
+	stp_product * old_prod = prod;
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
+	ListOfRoseAttribute refParents;
+	RoseDomain * search_domain;
+	RoseAttribute * search_att;
+
 	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
+	ProdOut->save();
+	//find prod in new design
+	RoseCursor curser;
+	curser.traverse(ProdOut);
+	curser.domain(ROSE_DOMAIN(stp_product));
+	RoseObject * obj2;
+	std::cout << curser.size() << std::endl;
+	while (obj2 = curser.next())	{
+		if (ROSE_CAST(stp_product, obj2) == prod){
+			prod = ROSE_CAST(stp_product, obj2);
+			break;
+		}
+	}
+	///
+	printf("\t%d\n", prod->entity_id());
+	ProdOut->addName(prod->id(), prod); //add anchor to ProdOut
+
 	ListOfRoseObject *children = new ListOfRoseObject;
 	obj->findObjects(children, INT_MAX, ROSE_FALSE);	//children will be filled with obj and all of its children
 	rose_mark_begin();
@@ -92,11 +114,19 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 		else{ continue; }
 	}
 	std::string refURI = std::string(prod->id() + std::string(".stp#") + prod->id());//+ std::to_string(nthObj)); //uri for created reference to prod/obj
-	ProdOut->addName(prod->id(), prod); //add anchor to ProdOut
+	
 
 	//make reference to prodout file from master
 	RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str()); 
-	rose_put_ref(ref, obj, prod->id()); 
+
+	search_domain = ROSE_DOMAIN(RoseObject); //find usage of obj and replace it with ref
+	search_att = search_domain->findTypeAttribute("owner");
+	obj->usedin(search_domain, search_att, &refParents);
+	RoseAttribute * ParentAtt = refParents.get(0);
+	for (unsigned int i = 1; i < refParents.size(); i++){
+		ParentAtt = refParents.get(i);
+		rose_put_ref(ref, obj, ParentAtt);
+	}
 	ProdOut->save(); //save ProdOut as prod->id().stp
 
 	rose_mark_end();
@@ -106,6 +136,7 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 	//-Use putobject to put the reference in the place of the old product info
 	//-Put obj in trash
 	//-Empty trash
+	//should prod be looked for in the new design after it's created?
 	delete ProdOut;
 	return 0;
 }
@@ -139,7 +170,7 @@ int main(int argc, char* argv[])
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	
 	/* Create a RoseDesign to hold the output data*/
-	RoseDesign * origional = ROSE.useDesign("as1-ac-214.stp");	//TODO: Make this use Argv[1]
+	RoseDesign * origional = ROSE.useDesign("derp.stp");	//TODO: Make this use Argv[1]
 	origional->saveAs("SplitOutput.stp");
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
 	split(master);
