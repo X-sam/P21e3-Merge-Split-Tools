@@ -34,11 +34,14 @@
       <Platform>X64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="STEPSplit.cxx" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>stpcad_geometry</RootNamespace>
     <ProjectGuid>{52D3D72C-B210-4030-AC31-D3A1237B43CC}</ProjectGuid>
-    <ProjectName>splitter</ProjectName>
+    <ProjectName>STEPSplit</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -250,9 +253,6 @@
       <AdditionalDependencies>stpcaddll.lib;p28e2dll.lib;rosedll.lib;kernel32.lib;user32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="splitter.cxx" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
