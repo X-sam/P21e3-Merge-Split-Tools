@@ -54,10 +54,8 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	RoseDomain *    search_domain;
 	RoseAttribute * search_att;
 
-	search_domain = ROSE_DOMAIN(RoseObject);
-	search_att = search_domain->findTypeAttribute("owner");
 	unsigned int k, sz;
-	child->usedin(search_domain, search_att, &parents);
+	child->usedin(NULL,NULL, &parents);
 	for (k = 0, sz = parents.size(); k < sz; k++){
 		RoseObject * parent = parents.get(k);
 		if (!rose_is_marked(parent) ){ //if parent is not marked then it is not a child of the object being split and needs to stay
@@ -73,7 +71,17 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee) 
 {
 	RoseAttribute * Att;
-	return Att;
+	ListOfRoseAttribute * attributes = Attributer->attributes();
+	std::cout << "Looking for Entity ID #" << Attributee->entity_id() <<"And name: " <<Attributee->domain()->name() <<"\t";
+	std::cout << "Attributer Entity ID #" << Attributer->entity_id() << "And name: " << Attributer->domain()->name() << std::endl;
+	for (unsigned int i = 0; i < attributes->size(); i++)
+	{
+		Att = attributes->get(i);
+		if (!Att->isEntity()) continue;	//If it isn't an entity it won't have an entity ID
+		std::cout << "\tAttribute #" << i << " Entity ID: " << ROSE_CAST(RoseObject, Att)->entity_id() << std::endl;
+		if(Att->entity_id() == Attributee->entity_id()) return Att;
+	}
+	return NULL;
 }
 
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
@@ -142,6 +150,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	for (unsigned int i = 0; i < n; i++){
 		Parent = refParents.get(i);
 		ParentAtt = FindAttribute(Parent,obj);
+		if (!ParentAtt) continue;	//Doesn't have the attribute so I guess we can skip it?
 		rose_put_ref(ref, obj, ParentAtt);
 	}
 	ProdOut->save(); //save ProdOut as prod->id().stp
@@ -188,7 +197,7 @@ int main(int argc, char* argv[])
 	RoseDesign * origional = ROSE.useDesign("derp.stp");	//TODO: Make this use Argv[1]
 	origional->saveAs("SplitOutput.stp");
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
-	rose_compute_backptrs();
+//	rose_compute_backptrs(master);
 	split(master);
 	
     return 0;
