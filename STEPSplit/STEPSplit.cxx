@@ -49,6 +49,7 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 	return NULL;
 }
 
+//takes pointer to a RoseObject from Master and creates a
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	stp_product * old_prod = prod;
@@ -119,7 +120,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		ParentAtt = FindAttribute(Parent,obj);
 		if (!ParentAtt) continue;	//Doesn't have the attribute so I guess we can skip it?
 		rose_put_ref(ref, obj, ParentAtt);
-	}*/
+	}*/ //to be deleted later
 	ProdOut->save(); //save ProdOut as prod->id().stp
 
 	rose_mark_end();
@@ -128,6 +129,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	return 0;
 }
 
+//split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
 int split(RoseDesign * master){	
 	//traverse to find obj that match type
 	RoseCursor cursor;
@@ -158,7 +160,7 @@ int main(int argc, char* argv[])
 	
 	/* Create a RoseDesign to hold the output data*/
 	RoseDesign * origional = ROSE.useDesign("derp.stp");	//TODO: Make this use Argv[1]
-	origional->saveAs("SplitOutput.stp");
+	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
 //	rose_compute_backptrs(master);
 	split(master);
