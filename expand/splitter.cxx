@@ -69,7 +69,6 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	return true;
 }
 
-int PutOut(RoseObject * obj, RoseDesign * master, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
 int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
@@ -121,7 +120,6 @@ int split(RoseDesign * master){		//, std::string type){
 	std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		//stp_product * prod = ROSE_CAST(stp_product, obj);
-		PutOut(obj, master, objCounter);
 		PutOut(obj, objCounter);
 		objCounter++;
 	}
