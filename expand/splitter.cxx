@@ -80,14 +80,16 @@ int PutOut(RoseObject * obj, const unsigned int &nthObj){ //(product, master ros
 	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->save();
 	//find prod in new design
-	RoseCursor curser;
-	curser.traverse(ProdOut);
-	curser.domain(ROSE_DOMAIN(stp_product));
+	RoseCursor cursor;
+	cursor.traverse(ProdOut);
+	cursor.domain(ROSE_DOMAIN(stp_product));
 	RoseObject * obj2;
-	std::cout << curser.size() << std::endl;
-	while (obj2 = curser.next())	{
-		if (ROSE_CAST(stp_product, obj2) == prod){
-			prod = ROSE_CAST(stp_product, obj2);
+	std::cout << cursor.size() << std::endl;
+	while (obj2 = cursor.next())	{
+		stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
+		std::string forComp = tmpProd->name(); //allows use of .compare
+		if ( forComp.compare( (prod->name() ) ) == 0){
+			prod = tmpProd;
 			break;
 		}
 	}
