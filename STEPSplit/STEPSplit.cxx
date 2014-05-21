@@ -69,11 +69,18 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	return true;
 }
 
+//Find which attribute of attributer attributee is and return it.
+RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee) 
+{
+	RoseAttribute * Att;
+	return Att;
+}
+
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	stp_product * old_prod = prod;
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
-	ListOfRoseAttribute refParents;
+	ListOfRoseObject refParents;
 	RoseDomain * search_domain;
 	RoseAttribute * search_att;
 
@@ -128,11 +135,13 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 
 	search_domain = ROSE_DOMAIN(RoseObject); //find usage of obj and replace it with ref
 	search_att = search_domain->findTypeAttribute("owner");
-	obj->usedin(search_domain, search_att, &refParents);
+	obj->usedin(NULL, NULL, &refParents);
+	RoseObject * Parent;
 	RoseAttribute * ParentAtt;
 	unsigned int n = refParents.size();
 	for (unsigned int i = 0; i < n; i++){
-		ParentAtt = refParents.get(i);
+		Parent = refParents.get(i);
+		ParentAtt = FindAttribute(Parent,obj);
 		rose_put_ref(ref, obj, ParentAtt);
 	}
 	ProdOut->save(); //save ProdOut as prod->id().stp
@@ -179,6 +188,7 @@ int main(int argc, char* argv[])
 	RoseDesign * origional = ROSE.useDesign("derp.stp");	//TODO: Make this use Argv[1]
 	origional->saveAs("SplitOutput.stp");
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
+	rose_compute_backptrs();
 	split(master);
 	
     return 0;
