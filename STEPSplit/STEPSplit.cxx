@@ -10,18 +10,17 @@
 #include <cstdio>
 #include "scan.h"
 
+//if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
 bool isOrphan(RoseObject * child, ListOfRoseObject * children){
-	ListOfRoseObject parents;	//if child's parent(s) not in children return false, else return true
-
+	ListOfRoseObject parents;
 	RoseDomain *    search_domain;
 	RoseAttribute * search_att;
-
 	unsigned int k, sz;
-	child->usedin(NULL,NULL, &parents);
+	child->usedin(NULL,NULL, &parents); //finds parents
 	for (k = 0, sz = parents.size(); k < sz; k++){
 		RoseObject * parent = parents.get(k);
 		if (!rose_is_marked(parent) ){ //if parent is not marked then it is not a child of the object being split and needs to stay
-			rose_mark_clear(child);
+			rose_mark_clear(child); //unmarks child to hopefully improve preformance on large operations
 			return false;
 		}
 	}
@@ -34,8 +33,8 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 {
 	RoseAttribute * Att;
 	ListOfRoseAttribute * attributes = Attributer->attributes();
-	std::cout << "Looking for Entity ID #" << Attributee->entity_id() <<"And name: " <<Attributee->domain()->name() <<"\t";
-	std::cout << "Attributer Entity ID #" << Attributer->entity_id() << "And name: " << Attributer->domain()->name() << std::endl;
+	//std::cout << "Looking for Entity ID #" << Attributee->entity_id() <<"And name: " <<Attributee->domain()->name() <<"\t";
+	//std::cout << "Attributer Entity ID #" << Attributer->entity_id() << "And name: " << Attributer->domain()->name() << std::endl;
 	for (unsigned int i = 0; i < attributes->size(); i++)
 	{
 		Att = attributes->get(i);
@@ -44,7 +43,7 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 			if(!Att->isAggregate()) continue;	//If it isn't an entity or an enumeration, ignore it.
 				
 		}
-		std::cout << "\tAttribute #" << i << " Entity ID: " << ROSE_CAST(RoseObject, Att)->entity_id() << std::endl;
+		//std::cout << "\tAttribute #" << i << " Entity ID: " << ROSE_CAST(RoseObject, Att)->entity_id() << std::endl;
 		if(Att->entity_id() == Attributee->entity_id()) return Att;
 	}
 	return NULL;
@@ -79,8 +78,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	else{
 		prod = ROSE_CAST(stp_product, cursor.next());
 	}
-	///
-	printf("\t%d\n", prod->entity_id());
+	///printf("\t%d\n", prod->entity_id());
 	ProdOut->addName(prod->id(), prod); //add anchor to ProdOut
 
 	ListOfRoseObject *children = new ListOfRoseObject;
@@ -92,11 +90,11 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		if (rose_is_marked(child)){ continue; }
 		else{ rose_mark_set(child); }
 	}
-	std::cout << "Children to parse: " << children->size() <<std::endl;
+	//std::cout << "Children to parse: " << children->size() <<std::endl;
 	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
 		RoseObject *child = children->get(i);
 		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
-			std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
+			//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
 			rose_move_to_trash(child);
 		}
 		else{ continue; }
@@ -126,16 +124,11 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 
 	rose_mark_end();
 	
-	//TODO:
-	//-Make a list of places where obj (a product) is used in
-	//-Use putobject to put the reference in the place of the old product info
-	//-Put obj in trash
-	//-Empty trash
 	delete ProdOut;
 	return 0;
 }
 
-int split(RoseDesign * master){		//, std::string type){
+int split(RoseDesign * master){	
 	//traverse to find obj that match type
 	RoseCursor cursor;
 	RoseObject * obj;
@@ -144,7 +137,6 @@ int split(RoseDesign * master){		//, std::string type){
 	cursor.domain(ROSE_DOMAIN(stp_product));
 	//std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
-		//stp_product * prod = ROSE_CAST(stp_product, obj);
 		PutOut(obj);
 		rose_move_to_trash(obj);
 	}
