@@ -128,6 +128,7 @@ int split(RoseDesign * master){		//, std::string type){
 	return 0;
 }
 
+
 int main(int argc, char* argv[])
 {
     stplib_init();	// initialize merged cad library
