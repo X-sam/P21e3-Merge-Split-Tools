@@ -8,48 +8,7 @@
 #include <map>
 #include <iostream>
 #include <cstdio>
-
 #include "scan.h"
-
-//std::map<std::string, int> translated;
-
-//Takes object, puts itself and all of its children in the output design
-int PutItem(RoseObject *obj, RoseDesign* output)
-{
-	obj->move(output, INT_MAX);
-	return 1;
-}
-
-//Takes in a reference and a design. 
-//Finds the file referenced, opens it, gets the referenced line and all of its children, puts them in the output design, removes the reference in output (if found)
-int AddItem(RoseReference *ref, RoseDesign* output)
-{
-	std::string URI(ref->uri());
-	//URI looks like "filename.stp#item1234"
-	//Split that into "filename.stp" and "item1234"
-	int poundpos = URI.find_first_of('#');
-	std::string reffile = URI.substr(0, poundpos);	//reffile contains "filename.stp"
-	std::string anchor = URI.substr(poundpos+1);	//anchor contains "item1234"		
-
-	//Now we can open the file and find the specific item referenced by the anchor.
-	RoseDesign * child = ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
-	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
-
-	if (-1 == PutItem(obj, output))	//Move the object (which is currently in the child file) into the new output file.
-	{
-		//Something went wrong. This can't happen at the present, but in theory a change to PutItem could allow for it.
-		return -1;
-	}
-	//Now that we have moved the item into the new domain,
-	//We need to update the items that use the references.
-	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
-	do
-	{
-		rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
-	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
-
-	return 0;
-}
 
 bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	ListOfRoseObject parents;	//if child's parent(s) not in children return false, else return true
