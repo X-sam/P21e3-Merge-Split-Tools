@@ -53,6 +53,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	stp_product * old_prod = prod;
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
 	ListOfRoseObject refParents;
+
 	
 	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->save();
