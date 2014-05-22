@@ -98,7 +98,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		}
 		else{ continue; }
 	}
-	std::string refURI = std::string(prod->id() + std::string(".stp#") + prod->id());//+ std::to_string(nthObj)); //uri for created reference to prod/obj
+	std::string refURI = std::string(prod->id() + std::string("_split") + std::string(".stp#") + prod->id());//uri for created reference to prod/obj
 	
 
 	//make reference to prodout file from master

@@ -17,11 +17,7 @@
 
 std::map<std::string, int> translated;
 std::vector<std::string> downloaded;	//List of downloaded files so we don't dl them twice.
-std::vector<std::string> options
-{
-	"-i [filelist] Ignore any listed children <Cannot be used alongside -a>",
-	"-a [filelist] Only allow listed children <Cannot be used alongside -i>"
-};
+std::vector<std::string> options;
 std::vector<std::string>blackorwhitelist;
 bool blacklist = true;	//Default the blackorwhitelist to being a blacklist, of size 0. AKA all files allowed.
 
@@ -121,7 +117,17 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
 	do
 	{
-		rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
+		//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() <<  std::endl;
+		if (rru->user_att()->isSelect()) {
+			rru->user()->putObject(
+				rose_create_select(rru->user_att()->slotDomain(), obj),
+				rru->user_att(),
+				rru->user_idx()
+				);
+		}
+		else{
+			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
+		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
 
 	return 0;
@@ -164,6 +170,8 @@ int parsecmdline(int argc, char*argv[], std::string &infilename, std::string &ou
 }
 int main(int argc, char* argv[])
 {
+	options.push_back("-i [filelist] Ignore any listed children <Cannot be used alongside -a>");
+	options.push_back("-a [filelist] Only allow listed children <Cannot be used alongside -i>");
 	if (argc < 3)
 	{
 		std::cout << "Usage: " << "STEPMerge.exe Master Output [Options]" << std::endl <<"OPTIONS:\n";
@@ -204,6 +212,7 @@ int main(int argc, char* argv[])
 	curser.traverse(design->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
 	RoseObject * obj;
+	std::cout << "Curser size: " << curser.size() << std::endl;
 	while (obj = curser.next())
 	{
 		std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
