@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
 	/* Create a RoseDesign to hold the output data*/
 
 	if (argc < 2){
-		std::cout << "Usage: .\\STEPSplit.exe filetosplit.stp" << std::endl << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product" <<std::endl;
+		std::cout << "Usage: .\\STEPSplit.exe filetosplit.stp\n" << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product" << std::endl;
 		return EXIT_FAILURE;
 	}
 	std::string infilename = argv[1];
