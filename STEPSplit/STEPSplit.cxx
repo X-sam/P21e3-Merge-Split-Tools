@@ -49,9 +49,9 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 
 //takes pointer to a RoseObject from Master and creates a
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
-	stp_product * prod = ROSE_CAST(stp_product, obj);
-	stp_product * old_prod = prod;
-	std::string ProdOutName = prod->id() + std::string("_split");
+	stp_product_related_product_category * prod = ROSE_CAST(stp_product_related_product_category, obj);
+	stp_product_related_product_category * old_prod = prod;
+	std::string ProdOutName = prod->name() + std::string("_split");
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	ListOfRoseObject refParents;
 
@@ -61,12 +61,12 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
-	cursor.domain(ROSE_DOMAIN(stp_product));
+	cursor.domain(ROSE_DOMAIN(stp_product_related_product_category));
 	RoseObject * obj2;
 	//std::cout << cursor.size() << std::endl;
 	if (cursor.size() > 1){
 		while (obj2 = cursor.next())	{
-			stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
+			stp_product_related_product_category * tmpProd = ROSE_CAST(stp_product_related_product_category, obj2);
 			std::string forComp = tmpProd->name(); //allows use of .compare
 			if (forComp.compare((prod->name())) == 0){
 				prod = tmpProd;
@@ -75,10 +75,10 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		}
 	}
 	else{
-		prod = ROSE_CAST(stp_product, cursor.next());
+		prod = ROSE_CAST(stp_product_related_product_category, cursor.next());
 	}
 	///printf("\t%d\n", prod->entity_id());
-	ProdOut->addName(prod->id(), prod); //add anchor to ProdOut
+	ProdOut->addName(prod->name(), prod); //add anchor to ProdOut
 
 	ListOfRoseObject *children = new ListOfRoseObject;
 	obj->findObjects(children, INT_MAX, ROSE_FALSE);	//children will be filled with obj and all of its children
@@ -98,7 +98,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		}
 		else{ continue; }
 	}
-	std::string refURI = std::string(prod->id() + std::string("_split") + std::string(".stp#") + prod->id());//uri for created reference to prod/obj
+	std::string refURI = std::string(prod->name() + std::string("_split") + std::string(".stp#") + prod->name());//uri for created reference to prod/obj
 	
 
 	//make reference to prodout file from master
@@ -134,7 +134,7 @@ int split(RoseDesign * master){
 	RoseObject * obj;
 	
 	cursor.traverse(master);
-	cursor.domain(ROSE_DOMAIN(stp_product));
+	cursor.domain(ROSE_DOMAIN(stp_product_related_product_category));
 	//std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		PutOut(obj);
