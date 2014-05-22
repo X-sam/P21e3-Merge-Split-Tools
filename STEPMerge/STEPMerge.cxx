@@ -125,7 +125,7 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 				rru->user_idx()
 				);
 		}
-		else{
+		else{ 
 			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
 		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
