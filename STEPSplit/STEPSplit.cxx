@@ -51,7 +51,8 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
 	stp_product * prod = ROSE_CAST(stp_product, obj);
 	stp_product * old_prod = prod;
-	RoseDesign * ProdOut = new RoseDesign(prod->id());
+	std::string ProdOutName = prod->id() + std::string("_split");
+	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	ListOfRoseObject refParents;
 
 	
@@ -167,7 +168,7 @@ int main(int argc, char* argv[])
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
 //	rose_compute_backptrs(master);
-	if (split(master) == 0) { std::cout << "Success!/n"; }
+	if (split(master) == 0) { std::cout << "Success!\n"; }
 	
     return 0;
 }
