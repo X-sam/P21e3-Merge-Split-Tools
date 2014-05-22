@@ -13,8 +13,6 @@
 //if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
 bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	ListOfRoseObject parents;
-	RoseDomain *    search_domain;
-	RoseAttribute * search_att;
 	unsigned int k, sz;
 	child->usedin(NULL,NULL, &parents); //finds parents
 	for (k = 0, sz = parents.size(); k < sz; k++){
@@ -55,8 +53,6 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	stp_product * old_prod = prod;
 	RoseDesign * ProdOut = new RoseDesign(prod->id());
 	ListOfRoseObject refParents;
-	RoseDomain * search_domain;
-	RoseAttribute * search_att;
 	
 	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->save();
@@ -161,7 +157,7 @@ int main(int argc, char* argv[])
 	/* Create a RoseDesign to hold the output data*/
 
 	if (argc < 2){
-		std::cout << "Usage: .\STEPSplit.exe filetosplit.stp" << std::endl << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product";
+		std::cout << "Usage: .\\STEPSplit.exe filetosplit.stp" << std::endl << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product" <<std::endl;
 		return EXIT_FAILURE;
 	}
 	std::string infilename = argv[1];
