@@ -159,7 +159,14 @@ int main(int argc, char* argv[])
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	
 	/* Create a RoseDesign to hold the output data*/
-	RoseDesign * origional = ROSE.useDesign("derp.stp");	//TODO: Make this use Argv[1]
+
+	if (argc < 2){
+		std::cout << "Usage: .\STEPSplit.exe filetosplit.stp" << std::endl << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product";
+		return EXIT_FAILURE;
+	}
+	std::string infilename = argv[1];
+	
+	RoseDesign * origional = ROSE.useDesign(infilename.c_str());	
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
 //	rose_compute_backptrs(master);
