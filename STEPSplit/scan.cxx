@@ -41,7 +41,7 @@ void scan_pointer(
 
 	RoseReference * ref = mgr->should_go_to_uri();
 	rose_put_ref(ref, parent, att, idx);
-	print_ref_use("hi", ref);
+	//print_ref_use("hi", ref);
 }
 
 void scan_aggregate_pointers(RoseObject * object)

@@ -62,7 +62,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	cursor.traverse(ProdOut);
 	cursor.domain(ROSE_DOMAIN(stp_product));
 	RoseObject * obj2;
-	std::cout << cursor.size() << std::endl;
+	//std::cout << cursor.size() << std::endl;
 	if (cursor.size() > 1){
 		while (obj2 = cursor.next())	{
 			stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
 //    rose_p28_init();	// support xml read/write
 	FILE *out;
 	out=fopen("log.txt","w");
-	//ROSE.error_reporter()->error_file(out);
+	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	
 	/* Create a RoseDesign to hold the output data*/
@@ -163,11 +163,11 @@ int main(int argc, char* argv[])
 	}
 	std::string infilename = argv[1];
 	
-	RoseDesign * origional = ROSE.useDesign(infilename.c_str());	
+	RoseDesign * origional = ROSE.useDesign(argv[1]);	
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
 	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
 //	rose_compute_backptrs(master);
-	split(master);
+	if (split(master) == 0) { std::cout << "Success!/n"; }
 	
     return 0;
 }
