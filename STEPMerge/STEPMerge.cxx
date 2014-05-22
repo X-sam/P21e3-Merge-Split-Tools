@@ -167,9 +167,9 @@ int main(int argc, char* argv[])
 	if (argc < 3)
 	{
 		std::cout << "Usage: " << "STEPMerge.exe Master Output [Options]" << std::endl <<"OPTIONS:\n";
-		for (auto i : options)
+		for (int i = 0; i < options.size();i++)
 		{
-			std::cout << i << std::endl;
+			std::cout << options[i] << std::endl;
 		}
 		return EXIT_FAILURE;
 	}
