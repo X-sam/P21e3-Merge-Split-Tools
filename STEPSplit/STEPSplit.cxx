@@ -11,6 +11,94 @@
 #include <cstdio>
 #include "scan.h"
 
+#pragma comment(lib,"stpcad_stix.lib")
+
+
+//################# From Dave's Code ################################
+static DictionaryOfRoseObject written_filenames;
+
+static void add_parts_dfs_order(
+	stp_product_definition * pd,
+	StpAsmProductDefVec &dfslist
+	)
+{
+	if (!pd) return;
+
+	unsigned i, sz;
+	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
+
+	// Already visited?
+	for (i = 0, sz = dfslist.size(); i<sz; i++)
+		if (dfslist[i] == pd)  return;
+
+	// Add all subproducts first
+	for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)
+	{
+		add_parts_dfs_order(
+			stix_get_related_pdef(pm->child_nauos[i]), dfslist
+			);
+	}
+
+	// Who knows, it could happen.
+	for (i = 0, sz = dfslist.size(); i<sz; i++)
+		if (dfslist[i] == pd)  return;
+
+	dfslist.append(pd);
+}
+
+RoseStringObject get_part_filename(
+	stp_product_definition * pd
+	)
+{
+	RoseStringObject name("part");
+	stp_product_definition_formation * pdf = pd->formation();
+	stp_product * p = pdf ? pdf->of_product() : 0;
+
+		char * pname = p ? p->name() : 0;
+		if (!pname || !*pname) pname = (char *) "none";
+
+		if (!name.is_empty()) name += "_";
+		name += pname;
+
+		// change whitespace and other non filesystem safe
+		// characters to underscores
+		//
+		char * c = name;
+		while (*c) {
+			if (isspace(*c)) *c = '_';
+			if (*c == '?') *c = '_';
+			if (*c == '/') *c = '_';
+			if (*c == '\\') *c = '_';
+			if (*c == ':') *c = '_';
+			if (*c == '"') *c = '_';
+			if (*c == '\'') *c = '_';
+			c++;
+		}
+
+		char idstr[100];
+		sprintf(idstr, "id%lu", pd->entity_id());
+
+		if (!name.is_empty()) name += "_";
+		name += idstr;
+
+	// CHECK FOR DUPLICATES AND WARN
+	RoseObject * obj = written_filenames.find(name);
+	if (obj && obj != p) {
+		printf("WARNING: Products #%lu and #%lu will export to the same file name!\n",
+			obj->entity_id(), p->entity_id());
+	}
+	else written_filenames.add(name, p);
+
+	if (pd->design()->fileExtension()) {
+		name += ".";
+		name += pd->design()->fileExtension();
+	}
+
+	return name;
+}
+//###################################################################
+
+
 //if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
 bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	ListOfRoseObject parents;
@@ -50,10 +138,23 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 
 //takes pointer to a RoseObject from Master and creates a
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
-	stp_product * prod = ROSE_CAST(stp_product, obj);
-	stp_product * old_prod = prod;
-	std::string ProdOutName = prod->name() + std::string("_split");
-	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
+	stp_product_definition * prod_def = ROSE_CAST(stp_product_definition, obj); //becomes a reference to prod in created file
+	stp_product_definition * old_prod_def = prod_def; //old prod stays a reference to prod in the master file
+	
+	StixMgrSplitProduct * split_mgr = StixMgrSplitProduct::find(prod_def);
+	if (split_mgr) return 1;   // already been exported
+	StixMgrAsmProduct * pd_mgr = StixMgrAsmProduct::find(prod_def);
+	if (!pd_mgr) return 1;  // not a proper part
+
+	split_mgr = new StixMgrSplitProduct;
+	split_mgr->part_filename = get_part_filename(prod_def);//creates left side of RefURI
+	prod_def->add_manager(split_mgr);//holds filename, which is also left side of RefURI
+
+	//for finding name of the product
+	stp_product_definition_formation * pdf = prod_def->formation();
+	stp_product * p = pdf ? pdf->of_product() : 0;
+
+	RoseDesign * ProdOut = new RoseDesign(split_mgr->part_filename);
 	ListOfRoseObject refParents;
 
 	
@@ -62,24 +163,30 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
-	cursor.domain(ROSE_DOMAIN(stp_product));
+	cursor.domain(ROSE_DOMAIN(stp_product_definition));
 	RoseObject * obj2;
 	//std::cout << cursor.size() << std::endl;
 	if (cursor.size() > 1){
 		while (obj2 = cursor.next())	{
-			stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
-			std::string forComp = tmpProd->name(); //allows use of .compare
-			if (forComp.compare((prod->name())) == 0){
-				prod = tmpProd;
+			stp_product_definition * tmpProd_def = ROSE_CAST(stp_product_definition, obj2);
+			stp_product_definition_formation * tmp_pdf = tmpProd_def->formation();
+			stp_product * tmp_p = tmp_pdf ? tmp_pdf->of_product() : 0;
+			std::string forComp = tmp_p->name(); //allows use of .compare
+			if (forComp.compare((p->name())) == 0){
+				prod_def = tmpProd_def;
 				break;
 			}
 		}
 	}
 	else{
-		prod = ROSE_CAST(stp_product, cursor.next());
+		prod_def = ROSE_CAST(stp_product_definition, cursor.next());
 	}
+	//sets name references items to referece new object
+	pdf = prod_def->formation();
+	p = pdf ? pdf->of_product() : 0;
+
 	///printf("\t%d\n", prod->entity_id());
-	ProdOut->addName(prod->name(), prod); //add anchor to ProdOut
+	ProdOut->addName(p->name(), prod_def); //add anchor to ProdOut
 
 	ListOfRoseObject *children = new ListOfRoseObject;
 	obj->findObjects(children, INT_MAX, ROSE_FALSE);	//children will be filled with obj and all of its children
@@ -99,7 +206,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		}
 		else{ continue; }
 	}
-	std::string refURI = std::string(prod->name() + std::string("_split") + std::string(".stp#") + prod->name());//uri for created reference to prod/obj
+	std::string refURI = std::string(split_mgr->part_filename) + std::string("#") + p->name();//uri for created reference to prod/obj
 	
 
 	//make reference to prodout file from master
@@ -130,6 +237,21 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
 int split(RoseDesign * master){	
+	unsigned i, sz;
+	StpAsmProductDefVec roots;
+	StpAsmProductDefVec dfslist;
+	stix_find_root_products(&roots, master);
+
+	for (i = 0, sz = roots.size(); i<sz; i++)
+		add_parts_dfs_order(roots[i], dfslist);
+
+	StixMgrSplitStatus::export_only_needed = 1;
+	for (i = 0, sz = dfslist.size(); i<sz; i++) {
+		stix_split_delete_all_marks(master);
+		PutOut(dfslist[i]);
+	}
+	return 0;
+	/* old non-stix code
 	//traverse to find obj that match type
 	RoseCursor cursor;
 	RoseObject * obj;
@@ -145,6 +267,7 @@ int split(RoseDesign * master){
 	master->save(); //save changes to master
 	rose_empty_trash();
 	return 0;
+	*/
 }
 
 
