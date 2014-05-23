@@ -46,7 +46,7 @@ static void add_parts_dfs_order(
 	dfslist.append(pd);
 }
 
-RoseStringObject get_part_filename(
+RoseStringObject get_part_name(
 	stp_product_definition * pd
 	)
 {
@@ -89,10 +89,10 @@ RoseStringObject get_part_filename(
 	}
 	else written_filenames.add(name, p);
 
-	if (pd->design()->fileExtension()) {
+	/*if (pd->design()->fileExtension()) {
 		name += ".";
 		name += pd->design()->fileExtension();
-	}
+	}*/
 
 	return name;
 }
@@ -141,24 +141,28 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	stp_product_definition * prod_def = ROSE_CAST(stp_product_definition, obj); //becomes a reference to prod in created file
 	stp_product_definition * old_prod_def = prod_def; //old prod stays a reference to prod in the master file
 	
+	RoseDesign * master = prod_def->design();
+
 	StixMgrSplitProduct * split_mgr = StixMgrSplitProduct::find(prod_def);
 	if (split_mgr) return 1;   // already been exported
 	StixMgrAsmProduct * pd_mgr = StixMgrAsmProduct::find(prod_def);
 	if (!pd_mgr) return 1;  // not a proper part
 
 	split_mgr = new StixMgrSplitProduct;
-	split_mgr->part_filename = get_part_filename(prod_def);//creates left side of RefURI
+	split_mgr->part_filename = get_part_name(prod_def);//creates left side of RefURI
 	prod_def->add_manager(split_mgr);//holds filename, which is also left side of RefURI
 
 	//for finding name of the product
 	stp_product_definition_formation * pdf = prod_def->formation();
 	stp_product * p = pdf ? pdf->of_product() : 0;
 
+	//decides file name
 	RoseDesign * ProdOut = new RoseDesign(split_mgr->part_filename);
-	ListOfRoseObject refParents;
+	//ListOfRoseObject refParents;
 
 	
-	obj->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
+	obj->copy(ProdOut, INT_MAX);	//copy files from master
+
 	ProdOut->save();
 	//find prod in new design
 	RoseCursor cursor;
@@ -186,8 +190,10 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	p = pdf ? pdf->of_product() : 0;
 
 	///printf("\t%d\n", prod->entity_id());
-	ProdOut->addName(p->name(), prod_def); //add anchor to ProdOut
+	ProdOut->addName(split_mgr->part_filename, prod_def); //add anchor to ProdOut
 
+
+/*	//Copy all children to new design ######################################### OLD
 	ListOfRoseObject *children = new ListOfRoseObject;
 	obj->findObjects(children, INT_MAX, ROSE_FALSE);	//children will be filled with obj and all of its children
 	rose_mark_begin();
@@ -205,8 +211,8 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 			rose_move_to_trash(child);
 		}
 		else{ continue; }
-	}
-	std::string refURI = std::string(split_mgr->part_filename) + std::string("#") + p->name();//uri for created reference to prod/obj
+	}*/
+	std::string refURI = std::string(split_mgr->part_filename) + std::string(".stp#") + std::string(split_mgr->part_filename);//uri for created reference to prod/obj
 	
 
 	//make reference to prodout file from master
