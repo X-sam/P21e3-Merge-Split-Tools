@@ -27,7 +27,12 @@ int getfromweb(std::string url,std::string out);
 //Takes object, puts itself and all of its children in the output design
 int PutItem(RoseObject *obj, RoseDesign* output)
 {
-	obj->move(output, INT_MAX);
+	RoseDesign * child = obj->design();
+	if (child == output) return 0;
+	std::cout << "Moving " << obj->domain()->name() <<" id#: " <<obj->entity_id() <<std::endl;
+	std::cout << "Size of Child design: " << child->size() <<"\n\tSize of output design: " << output->size() <<"\n\tTotal size of child and output: " <<child->size()+output->size() <<std::endl;
+	obj->move(output, INT_MAX,TRUE);
+	std::cout << "Size of Child design After: " << child->size() << "\n\tSize of output design After: " << output->size() << "\n\tTotal size of child and output after: " <<child->size()+output->size() <<std::endl;
 	return 1;
 }
 
@@ -129,7 +134,8 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
 		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
-
+	//child->save();
+	output->save();
 	return 0;
 }
 
@@ -188,6 +194,7 @@ int main(int argc, char* argv[])
 	FILE *out;
 	out=fopen("log.txt","w");
 	ROSE.error_reporter()->error_file(out);
+	ROSE.quiet(0);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 
 	/* Create a RoseDesign to hold the output data*/
@@ -212,10 +219,10 @@ int main(int argc, char* argv[])
 	curser.traverse(design->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
 	RoseObject * obj;
-	std::cout << "Curser size: " << curser.size() << std::endl;
+	//std::cout << "Curser size: " << curser.size() << std::endl;
 	while (obj = curser.next())
 	{
-		std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
+		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
 		//Pass the reference to AddItem, which will open the associated file 
 		//& handle adding the referenced item & its children to the new file.
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design);
@@ -234,7 +241,7 @@ int main(int argc, char* argv[])
 	for (auto i : downloaded)
 	{
 		//Remove temporary files
-		DeleteFileA(i.data());
+		//DeleteFileA(i.data());
 	}
 	design->save();
     return EXIT_SUCCESS;
@@ -245,7 +252,7 @@ int getfromweb(std::string url,std::string out)
 {
 	HRESULT hr;
 	hr = URLDownloadToFile(0, url.data(),out.data(), 0, 0);
-	std::cout << hr;
+	//std::cout << hr;
 	if (hr == S_OK) return 0;
 	else return -1;
 }
