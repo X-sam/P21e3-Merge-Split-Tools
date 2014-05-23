@@ -11,6 +11,8 @@
 #include <cstdio>
 #include "scan.h"
 
+#pragma comment(lib,"stpcad_stix.lib")
+
 //if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
 bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	ListOfRoseObject parents;
