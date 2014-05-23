@@ -4,6 +4,7 @@
 #include <rose.h>
 #include <rose_p28.h>
 #include <stp_schema.h>
+#include <stix.h>
 #include <string>
 #include <map>
 #include <iostream>
@@ -49,8 +50,8 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 
 //takes pointer to a RoseObject from Master and creates a
 int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
-	stp_product_related_product_category * prod = ROSE_CAST(stp_product_related_product_category, obj);
-	stp_product_related_product_category * old_prod = prod;
+	stp_product * prod = ROSE_CAST(stp_product, obj);
+	stp_product * old_prod = prod;
 	std::string ProdOutName = prod->name() + std::string("_split");
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	ListOfRoseObject refParents;
@@ -61,12 +62,12 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
-	cursor.domain(ROSE_DOMAIN(stp_product_related_product_category));
+	cursor.domain(ROSE_DOMAIN(stp_product));
 	RoseObject * obj2;
 	//std::cout << cursor.size() << std::endl;
 	if (cursor.size() > 1){
 		while (obj2 = cursor.next())	{
-			stp_product_related_product_category * tmpProd = ROSE_CAST(stp_product_related_product_category, obj2);
+			stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
 			std::string forComp = tmpProd->name(); //allows use of .compare
 			if (forComp.compare((prod->name())) == 0){
 				prod = tmpProd;
@@ -75,7 +76,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 		}
 	}
 	else{
-		prod = ROSE_CAST(stp_product_related_product_category, cursor.next());
+		prod = ROSE_CAST(stp_product, cursor.next());
 	}
 	///printf("\t%d\n", prod->entity_id());
 	ProdOut->addName(prod->name(), prod); //add anchor to ProdOut
@@ -134,7 +135,7 @@ int split(RoseDesign * master){
 	RoseObject * obj;
 	
 	cursor.traverse(master);
-	cursor.domain(ROSE_DOMAIN(stp_product_related_product_category));
+	cursor.domain(ROSE_DOMAIN(stp_product));
 	//std::cout << cursor.size() << std::endl;
 	while (obj = cursor.next()){
 		PutOut(obj);
