@@ -1,5 +1,5 @@
 //Samson Made this code.
-//5/19/14
+//5/23/14
 
 #include <rose.h>
 #include <rose_p28.h>
@@ -47,5 +47,12 @@ int main(int argc, char* argv[])
 		std::cout <<roots->get(i)->className() <<std::endl;
 	}
 	delete roots;
+	std::string syscmd("mkdir ");
+	syscmd.append("testdir");
+	if (system(syscmd.data()) != 0)
+	{
+		std::cout <<"Error opening file\n";
+		return EXIT_FAILURE;
+	}
 	return EXIT_SUCCESS;
 }
