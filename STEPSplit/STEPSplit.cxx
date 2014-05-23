@@ -4,6 +4,7 @@
 #include <rose.h>
 #include <rose_p28.h>
 #include <stp_schema.h>
+#include <stix.h>
 #include <string>
 #include <map>
 #include <iostream>
