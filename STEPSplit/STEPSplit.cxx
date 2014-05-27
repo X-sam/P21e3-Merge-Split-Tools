@@ -73,7 +73,7 @@ int PutOut(RoseObject * obj){ //(product,relative_dir) for splitting the code
 	while (spacepos != std::string::npos)
 	{
 		ProdOutName[spacepos] = '_';	//Replaces space with underscore, for filesystem safety.
-		ProdOutName.find(' ', spacepos+1);
+		spacepos = ProdOutName.find(' ', spacepos+1);
 	}
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	//ListOfRoseObject refParents; depricated
