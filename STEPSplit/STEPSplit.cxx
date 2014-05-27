@@ -66,19 +66,11 @@ int PutOut(RoseObject * obj){ //(product,relative_dir) for splitting the code
 	stp_product_definition_formation * prodf = prod->formation();
 	stp_product * p = prodf ? prodf->of_product() : 0;
 
-	std::string ProdOutName = std::string(p->name() + std::string("_split"));
-/*	char * c = ProdOutName.c_str();  makes ProdOutName file system safe
-	while (*c) {
-		if (isspace(*c)) *c = '_';
-		if (*c == '?') *c = '_';
-		if (*c == '/') *c = '_';
-		if (*c == '\\') *c = '_';
-		if (*c == ':') *c = '_';
-		if (*c == '"') *c = '_';
-		if (*c == '\'') *c = '_';
-		c++;
-	}
-	ProdOutName = c; */
+//	std::string ProdOutName = std::string(p->name() + std::string("_split"));
+	std::string ProdOutName(p->name);
+	ProdOutName.append("_split");
+	int spacepos = ProdOutName.find(" ");	//Finds first space in filename, if any.
+	if (spacepos != std::string::npos) ProdOutName[spacepos] = '_';	//Replaces space with underscore, for filesystem safety.
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	//ListOfRoseObject refParents; depricated
 
