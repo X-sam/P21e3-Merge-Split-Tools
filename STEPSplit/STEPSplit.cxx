@@ -11,6 +11,14 @@
 #include <cstdio>
 #include "scan.h"
 
+#include <ctype.h>
+#include <stix_asm.h>
+#include <stix_tmpobj.h>
+#include <stix_property.h>
+#include <stix_split.h>
+
+#pragma comment(lib,"stpcad_stix.lib")
+
 //if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
 bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	ListOfRoseObject parents;
@@ -19,7 +27,7 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	for (k = 0, sz = parents.size(); k < sz; k++){
 		RoseObject * parent = parents.get(k);
 		if (!rose_is_marked(parent)){ //if parent is not marked then it is not a child of the object being split and needs to stay
-			rose_mark_clear(child); //unmarks child to hopefully improve preformance on large operations
+			//rose_mark_clear(child); //unmarks child to hopefully improve preformance on large operations
 			return false;
 		}
 	}
@@ -49,10 +57,28 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 }
 
 //takes pointer to a RoseObject from Master and creates a
-int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the code
-	stp_product * prod = ROSE_CAST(stp_product, obj);
-	stp_product * old_prod = prod;
-	std::string ProdOutName = prod->name() + std::string("_split");
+int PutOut(RoseObject * obj){ //(product,relative_dir) for splitting the code
+
+	if (!obj) return 1; 
+
+	stp_product_definition * prod = ROSE_CAST(stp_product_definition, obj);
+	stp_product_definition * old_prod = prod;
+	stp_product_definition_formation * prodf = prod->formation();
+	stp_product * p = prodf ? prodf->of_product() : 0;
+
+	std::string ProdOutName = std::string(p->name() + std::string("_split"));
+/*	char * c = ProdOutName.c_str();  makes ProdOutName file system safe
+	while (*c) {
+		if (isspace(*c)) *c = '_';
+		if (*c == '?') *c = '_';
+		if (*c == '/') *c = '_';
+		if (*c == '\\') *c = '_';
+		if (*c == ':') *c = '_';
+		if (*c == '"') *c = '_';
+		if (*c == '\'') *c = '_';
+		c++;
+	}
+	ProdOutName = c; */
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	//ListOfRoseObject refParents; depricated
 
@@ -62,34 +88,46 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
-	cursor.domain(ROSE_DOMAIN(stp_product));
+	cursor.domain(ROSE_DOMAIN(stp_product_definition));
 	RoseObject * obj2;
 	//std::cout << cursor.size() << std::endl;
 	if (cursor.size() > 1){
+		stp_product_definition * tmp_pd;
+		stp_product_definition_formation * tmp_pdf;
+		stp_product * tmp_p;
+		std::string forComp;
 		while (obj2 = cursor.next())	{
-			stp_product * tmpProd = ROSE_CAST(stp_product, obj2);
-			std::string forComp = tmpProd->name(); //allows use of .compare
-			if (forComp.compare((prod->name())) == 0){
-				prod = tmpProd;
+			tmp_pd = ROSE_CAST(stp_product_definition, obj2);
+			tmp_pdf = tmp_pd->formation();
+			tmp_p = tmp_pdf ? tmp_pdf->of_product() : 0;
+
+			std::string forComp = tmp_p->name(); //allows use of .compare
+			if (forComp.compare((p->name())) == 0){
+				prod = tmp_pd;
+				prodf = prod->formation();
+				p = prodf ? prodf->of_product() : 0;
 				break;
 			}
 		}
 	}
 	else{
-		prod = ROSE_CAST(stp_product, cursor.next());
+		prod = ROSE_CAST(stp_product_definition, cursor.next());
 	}
 	///printf("\t%d\n", prod->entity_id());
-	ProdOut->addName(prod->name(), prod); //add anchor to ProdOut
+	ProdOut->addName(p->name(), prod); //add anchor to ProdOut
 
 	ListOfRoseObject *children = new ListOfRoseObject;
 	obj->findObjects(children, INT_MAX, ROSE_FALSE);	//children will be filled with obj and all of its children
-	rose_mark_begin();
+	//rose_mark_begin();
 	rose_mark_set(obj);
 	for (unsigned int i = 0; i < children->size(); i++){ //mark all children for orphan check
 		RoseObject *child = children->get(i);
 		if (rose_is_marked(child)){ continue; }
 		else{ rose_mark_set(child); }
 	}
+	//mark subassembly, shape_annotation, and step_extras
+
+
 	//std::cout << "Children to parse: " << children->size() <<std::endl;
 	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
 		RoseObject *child = children->get(i);
@@ -97,9 +135,9 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 			//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
 			rose_move_to_trash(child);
 		}
-		else{ continue; }
+		else{ continue; } //make reference to new object that replaces old one in master
 	}
-	std::string refURI = std::string(prod->name() + std::string("_split") + std::string(".stp#") + prod->name());//uri for created reference to prod/obj
+	std::string refURI = std::string(p->name() + std::string("_split") + std::string(".stp#") + p->name());//uri for created reference to prod/obj
 
 
 	//make reference to prodout file from master
@@ -108,21 +146,7 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
-	/*	search_domain = ROSE_DOMAIN(RoseObject); //find usage of obj and replace it with ref
-	search_att = search_domain->findTypeAttribute("owner");
-	obj->usedin(NULL, NULL, &refParents);
-	RoseObject * Parent;
-	RoseAttribute * ParentAtt;
-	unsigned int n = refParents.size();
-	for (unsigned int i = 0; i < n; i++){
-	Parent = refParents.get(i);
-	ParentAtt = FindAttribute(Parent,obj);
-	if (!ParentAtt) continue;	//Doesn't have the attribute so I guess we can skip it?
-	rose_put_ref(ref, obj, ParentAtt);
-	}*/ //to be deleted later
 	ProdOut->save(); //save ProdOut as prod->id().stp
-
-	rose_mark_end();
 
 	delete ProdOut;
 	return 0;
@@ -131,16 +155,24 @@ int PutOut(RoseObject * obj){ //(product, master rose design) for splitting the 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
 int split(RoseDesign * master){
 	//traverse to find obj that match type
-	RoseCursor cursor;
-	RoseObject * obj;
+	//RoseCursor cursor;
+	//RoseObject * obj;
 
-	cursor.traverse(master);
-	cursor.domain(ROSE_DOMAIN(stp_product));
-	//std::cout << cursor.size() << std::endl;
-	while (obj = cursor.next()){
-		PutOut(obj);
-		rose_move_to_trash(obj);
+	// Navigate through the assembly and export any part which has
+	// geometry.
+	unsigned int i,sz;
+	StpAsmProductDefVec roots;
+	stix_find_root_products (&roots, master);
+
+	StixMgrSplitStatus::export_only_needed = 1;
+	printf ("\nPRODUCT TREE ====================\n");
+	rose_mark_begin();
+	for (i = 0, sz = roots.size(); i < sz; i++){
+		PutOut(roots[i]);
+		rose_move_to_trash(roots[i]);
 	}
+	rose_mark_end();
+
 	update_uri_forwarding(master);
 	master->save(); //save changes to master
 	rose_empty_trash();

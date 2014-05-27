@@ -359,13 +359,13 @@ void tag_listleaf_for_export (
     objs.traverse(d);
     objs.domain(dom);
     while ((obj=objs.next()) != 0) {
-	if (stix_split_has_export (obj, attname)) {
-	    stix_split_trim_for_export (obj, attname);
-	    stix_split_mark_needed(obj, (unsigned) -1);
-	}
-	else {
-	    stix_split_mark_ignorable(obj, (unsigned) -1);
-	}
+		if (stix_split_has_export (obj, attname)) {
+			stix_split_trim_for_export (obj, attname);
+			stix_split_mark_needed(obj, (unsigned) -1);
+		}
+		else {
+			stix_split_mark_ignorable(obj, (unsigned) -1);
+		}
     }
 }
 
@@ -381,12 +381,12 @@ void tag_leaf_for_export (
     objs.traverse(d);
     objs.domain(dom);
     while ((obj=objs.next()) != 0) {
-	if (stix_split_has_export (obj, attname)) {
-	    stix_split_mark_needed(obj, (unsigned) -1);
-	}
-	else {
-	    stix_split_mark_ignorable(obj, (unsigned) -1);
-	}
+		if (stix_split_has_export (obj, attname)) {
+			stix_split_mark_needed(obj, (unsigned) -1);
+		}
+		else {
+			stix_split_mark_ignorable(obj, (unsigned) -1);
+		}
     }
 }
 
@@ -408,20 +408,20 @@ void tag_step_properties(
     objs.traverse(d);
     objs.domain(ROSE_DOMAIN(stp_property_definition));
     while ((obj=objs.next()) != 0) {
-	stp_property_definition * pd = ROSE_CAST(stp_property_definition,obj);
+		stp_property_definition * pd = ROSE_CAST(stp_property_definition,obj);
 
-	// Only look at properties on things in the destination
-	if (!stix_split_is_export (pd->definition())) continue;
-	stix_split_mark_needed (pd, (unsigned) -1);
+		// Only look at properties on things in the destination
+		if (!stix_split_is_export (pd->definition())) continue;
+		stix_split_mark_needed (pd, (unsigned) -1);
 
-	// mark any representations
-	StixMgrPropertyRep * pdrmgr = StixMgrPropertyRep::find(pd);
-	if (!pdrmgr) continue;
+		// mark any representations
+		StixMgrPropertyRep * pdrmgr = StixMgrPropertyRep::find(pd);
+		if (!pdrmgr) continue;
 
-	unsigned i,sz;
-	for (i=0,sz=pdrmgr->size(); i<sz; i++) {
-	    stix_split_mark_needed (pdrmgr-> get(i), (unsigned) -1);
-	}
+		unsigned i,sz;
+		for (i=0,sz=pdrmgr->size(); i<sz; i++) {
+			stix_split_mark_needed (pdrmgr-> get(i), (unsigned) -1);
+		}
     }
 }
 
