@@ -716,6 +716,16 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 	return NULL;
 }
 
+std::string SafeName(std::string name){
+	int spacepos = name.find(' ');	//Finds first space in filename, if any.
+	while (spacepos != std::string::npos)
+	{
+		name[spacepos] = '_';	//Replaces space with underscore, for filesystem safety.
+		spacepos = name.find(' ', spacepos + 1);
+	}
+	return name;
+}
+
 //takes pointer to a RoseObject from Master and creates a
 void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
 
@@ -732,23 +742,18 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	std::string ProdOutName(p->name());
 	ProdOutName.append("_split_item" );
 	ProdOutName.append( std::to_string(p->entity_id())  );
-	int spacepos = ProdOutName.find(' ');	//Finds first space in filename, if any.
-	while (spacepos != std::string::npos)
-	{
-		ProdOutName[spacepos] = '_';	//Replaces space with underscore, for filesystem safety.
-		spacepos = ProdOutName.find(' ', spacepos+1);
-	}
+	ProdOutName = SafeName(ProdOutName);
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	//ListOfRoseObject refParents; depricated
 
 	prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->fileDirectory(dir.c_str());
-	copy_header (ProdOut, obj->design());
-    copy_schema (ProdOut, obj->design());
+	//copy_header (ProdOut, obj->design());
+    //copy_schema (ProdOut, obj->design());
 //	markChildren(obj); //marks children and removes them from master if obj is the only parent
 	ProdOut->save();
 	RoseObject * obj2;
-	/*
+	
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
@@ -774,11 +779,11 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		prod = ROSE_CAST(stp_product_definition, cursor.next());
 		prodf = prod->formation();
 		p = prodf ? prodf->of_product() : 0;
-	} */
+	} //*/
 	///printf("\t%d\n", prod->entity_id());
 	ProdOut->addName(ProdOutName.c_str(), prod); //add anchor to ProdOut
 	
-	std::string refURI = std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
+	std::string refURI = dir + "/" + std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
 	//make reference to prodout file from master
 	RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str());
 	ref->resolved(obj);
@@ -833,20 +838,37 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
 	stp_product_definition_formation * pdf = pd->formation();
 	stp_product * p = pdf ? pdf->of_product() : 0;
-
+	std::string name = p->name();
+	name = SafeName(name);
 	unsigned i, sz;
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
 		printf("IGNORING PD #%lu (%s) (assembly)\n",
-		pd->entity_id(), p->name() ? p->name() : ""); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
+		pd->entity_id(), (p->name()) ? p->name() : ""); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
 		dir.append("/");
-		dir.append(p->name());
-		std::cout << dir << std::endl;
-		rose_mkdir(dir.c_str());
+		dir.append(name);
+		std::string tmpdir = dir;
+		tmpdir.append("1");
+		
+		if (!rose_dir_exists(tmpdir.c_str())){
+			dir = tmpdir;
+			rose_mkdir(dir.c_str());
+		}
+		else{ //make different dir
+			std::cout << dir << std::endl;
+			i = 2; tmpdir.pop_back(); tmpdir.append(std::to_string(i));
+			while (rose_dir_exists(tmpdir.c_str()) != 0){
+				i++;
+				tmpdir.pop_back(); tmpdir.append(std::to_string(i));
+			}
+			dir = tmpdir;
+			rose_mkdir(dir.c_str());
+		}
+		std::cout << "mkdir outpus this: " << rose_mkdir(dir.c_str()) << "\n" << std::endl;
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
-			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir); // , dstdir);
+			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
 		}
 	}
 	else {
