@@ -782,7 +782,7 @@ void PutOut(stp_product_definition * prod){ //(product,relative_dir) for splitti
 	delete ProdOut;
 }
 
-int PutOutHelper(stp_product_definition * pd){
+int PutOutHelper(stp_product_definition * pd, std::string dir){
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
 	stp_product_definition_formation * pdf = pd->formation();
@@ -793,11 +793,14 @@ int PutOutHelper(stp_product_definition * pd){
 	if (pm->child_nauos.size()) {
 		printf("IGNORING PD #%lu (%s) (assembly)\n",
 		pd->entity_id(), p->name() ? p->name() : ""); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
-
+		dir.append("/");
+		dir.append(p->name());
+		std::cout << dir << std::endl;
+		rose_mkdir(dir.c_str());
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
-			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i])); // , dstdir);
+			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir); // , dstdir);
 		}
 	}
 	else {
@@ -824,7 +827,7 @@ int PutOutHelper(stp_product_definition * pd){
 }
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
-int split(RoseDesign * master){
+int split(RoseDesign * master, std::string dir){
 	//traverse to find obj that match type
 	//RoseCursor cursor;
 	//RoseObject * obj;
@@ -846,8 +849,9 @@ int split(RoseDesign * master){
 	printf ("\nPRODUCT TREE ====================\n");
 	rose_mark_begin();
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		PutOutHelper(roots[i]);
+		PutOutHelper(roots[i], dir);
 	}
+	if (sz == 0) { return 1;}
 
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		rose_move_to_trash(roots[i]);
@@ -869,7 +873,7 @@ int main(int argc, char* argv[])
 	//    rose_p28_init();	// support xml read/write
 	FILE *out;
 	out = fopen("log.txt", "w");
-	ROSE.error_reporter()->error_file(out);
+	//ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 
 	/* Create a RoseDesign to hold the output data*/
@@ -881,10 +885,12 @@ int main(int argc, char* argv[])
 	std::string infilename = argv[1];
 
 	RoseDesign * origional = ROSE.useDesign(argv[1]);
+	std::string dir = "out";
+	rose_mkdir(dir.c_str());
+	origional->fileDirectory(dir.c_str());
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
-	RoseDesign * master = ROSE.useDesign("SplitOutput.stp");
-	//	rose_compute_backptrs(master);
-	if (split(master) == 0) { std::cout << "Success!\n"; }
-
+	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
+	master->fileDirectory(dir.c_str());
+	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
 	return 0;
 }
