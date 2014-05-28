@@ -1141,6 +1141,7 @@ void export_all_parts_from_tree(
 
     // Does this have real shapes?
     if (pm->child_nauos.size()) {
+	printf("\nderka derka size: %d\n", pm->child_nauos.size());
 	printf ("IGNORING PD #%lu (%s) (assembly)\n",
 		pd->entity_id(), p->name()? p->name():"");
 
@@ -1160,6 +1161,7 @@ void export_all_parts_from_tree(
 
 	// no shapes with real geometry
 	if (i<sz) {
+		printf("\nderka derka size: %d\n", pm->child_nauos.size());
 	    printf ("EXPORTING PD #%lu (%s)\n",
 		    pd->entity_id(), p->name()? p->name():"");
 
