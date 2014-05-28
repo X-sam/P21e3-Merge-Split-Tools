@@ -1330,7 +1330,7 @@ int main (int argc, char ** argv)
     int do_tree = 0;
     int do_all = 1;
     int do_top = 0;
-    int do_mast = 1;
+    int do_mast = 0;
 
     /* must have at least one arg */
     if (argc < 2) usage(argv[0]);
@@ -1379,7 +1379,7 @@ int main (int argc, char ** argv)
 	    do_tree = 1;
 	    name_style = name_style_name;  // use different convention
 	    do_all = 0;
-	    do_mast = 0;
+	    do_mast = 1;
 	    do_top = 0;
 	}
 	else {

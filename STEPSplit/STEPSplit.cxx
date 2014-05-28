@@ -628,6 +628,29 @@ bool isOrphan(RoseObject * child, ListOfRoseObject * children){
 	return true;
 }
 
+void markChildren(RoseObject * obj){
+	ListOfRoseObject *children = new ListOfRoseObject;
+	//old_prod->findObjects(children, INT_MAX, ROSE_FALSE);	breaks children
+	obj->findObjects(children, INT_MAX, ROSE_FALSE); //children will be filled with obj and all of its children
+	//rose_mark_set(obj);
+	for (unsigned int i = 0; i < children->size(); i++){ //mark all children for orphan check
+		RoseObject *child = children->get(i);
+		if (rose_is_marked(child)){ continue; }
+		else{ rose_mark_set(child); }
+	}
+
+	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
+		RoseObject *child = children->get(i);
+		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
+			//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
+			std::cout << child->domain()->name() << " moved to trash" << std::endl; //
+			rose_move_to_trash(child);
+		}
+		else{ continue; } //make reference to new object that replaces old one in master
+	}
+
+}
+
 //Find which attribute of attributer attributee is and return it.
 RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 {
@@ -650,14 +673,17 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 }
 
 //takes pointer to a RoseObject from Master and creates a
-int PutOut(stp_product_definition * prod){ //(product,relative_dir) for splitting the code
+void PutOut(stp_product_definition * prod){ //(product,relative_dir) for splitting the code
 
-	if (!prod) return 1; 
+	if (!prod) return; 
 	RoseObject * obj = ROSE_CAST(RoseObject, prod);
 	stp_product_definition * old_prod = prod;
 	stp_product_definition_formation * prodf = prod->formation();
 	stp_product * p = prodf ? prodf->of_product() : 0;
-	if (!p) return 1;	//No product so can't do things right?
+
+	stix_split_clear_needed_and_ignore_trimmed(prod->design());
+
+	if (!p) return;	//No product so can't do things right?
 //	std::string ProdOutName = std::string(p->name() + std::string("_split"));
 	std::string ProdOutName(p->name());
 	ProdOutName.append("_split_item" );
@@ -673,13 +699,14 @@ int PutOut(stp_product_definition * prod){ //(product,relative_dir) for splittin
 
 
 	prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
+//	markChildren(obj); //marks children and removes them from master if obj is the only parent
 	ProdOut->save();
-	
+	RoseObject * obj2;
+	/*
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
 	cursor.domain(ROSE_DOMAIN(stp_product_definition));
-	RoseObject * obj2;
 	//std::cout << cursor.size() << std::endl;
 	if (cursor.size() > 1){
 		stp_product_definition * tmp_pd; 		stp_product_definition_formation * tmp_pdf;		stp_product * tmp_p;		std::string forComp;
@@ -699,120 +726,12 @@ int PutOut(stp_product_definition * prod){ //(product,relative_dir) for splittin
 	}
 	else{
 		prod = ROSE_CAST(stp_product_definition, cursor.next());
-	}
+		prodf = prod->formation();
+		p = prodf ? prodf->of_product() : 0;
+	} */
 	///printf("\t%d\n", prod->entity_id());
 	ProdOut->addName(ProdOutName.c_str(), prod); //add anchor to ProdOut
-
-	ListOfRoseObject *children = new ListOfRoseObject;
-	//old_prod->findObjects(children, INT_MAX, ROSE_FALSE);	breaks children
-	obj->findObjects(children, INT_MAX, ROSE_FALSE); //children will be filled with obj and all of its children
-	//rose_mark_begin();
-	rose_mark_set(prod);
-	rose_mark_set(old_prod);
-	for (unsigned int i = 0; i < children->size(); i++){ //mark all children for orphan check
-		RoseObject *child = children->get(i);
-		if (rose_is_marked(child)){ continue; }
-		else{ rose_mark_set(child); }
-	}
-	tag_subassembly(old_prod);
-	tag_shape_annotation(old_prod->design());
-	tag_step_extras(old_prod->design());
-
-	// Move all of the objects that we need to export over to the
-	// destination design.   It does not care
-	// where aggregates are though.
-	//
-	RoseCursor objs;
-	objs.traverse(obj->design());
-	objs.domain(ROSE_DOMAIN(RoseStructure));
-	while ((obj2 = objs.next()) != 0) {
-		if (stix_split_is_export(obj2) && !rose_is_marked(obj2)) { obj2->copy(ProdOut); }
-	}
 	
-	objs.traverse(obj->design());
-	objs.domain(ROSE_DOMAIN(RoseUnion));
-	while ((obj2 = objs.next()) != 0) { if (!rose_is_marked(obj2)) { obj2->copy(ProdOut); } }
-
-	ProdOut->save();
-
-
-	/*
-	//mark subassembly, shape_annotation, and step_extras
-	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(obj);
-	std::cout << obj->domain()->name() << " pm siize: " << pm->child_nauos.size() << std::endl;
-	unsigned i, sz;
-	// Does this have real shapes?
-	if (pm->child_nauos.size()) {
-		printf("IGNORING PD #%lu (%s) (assembly)\n",
-			prod->entity_id(), p->name() ? p->name() : "");
-	
-		// recurse to all subproducts, do this even if there is geometry?
-		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
-			PutOut(stix_get_related_pdef(pm->child_nauos[i])); // , dstdir);
-		}
-	}
-	else {
-		for (i = 0, sz = pm->shapes.size(); i<sz; i++) {
-			if (has_geometry(pm->shapes[i])) break;
-		}
-
-		// no shapes with real geometry
-		if (i<sz) {
-			printf("EXPORTING PD #%lu (%s)\n",
-				prod->entity_id(), p->name() ? p->name() : "");
-
-
-			//export_part_file(pd, dstdir);
-		}
-		else {
-			printf("IGNORING PD #%lu (%s) (no geometry)\n",
-				prod->entity_id(), p->name() ? p->name() : "");
-
-
-
-			for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
-				RoseObject *child = children->get(i);
-				if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
-					//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
-					//std::cout << "\n" << child->domain()->name() << " moved to trash\n" << std::endl; //
-					rose_move_to_trash(child);
-				}
-				else{ 
-					//std::cout << child->domain()->name() << " not moved" << std::endl;
-					//ProdOut->addName(child->name()+child->entity_id(), child); //add anchor to ProdOut
-					continue; 
-				} //make reference to new object that replaces old one in master
-			}
-			std::string refURI = std::string(p->name() + std::string("_split") + std::string(".stp#") + p->name());//uri for created reference to prod/obj
-
-
-			//make reference to prodout file from master
-			RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str());
-			ref->resolved(obj);
-			MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
-			URIManager = MyURIManager::make(obj);
-			URIManager->should_go_to_uri(ref);
-			ProdOut->save(); //save ProdOut as prod->id().stp
-
-			delete ProdOut;
-			return 0;
-
-		}
-	}
-	*/
-	
-	//std::cout << "Children to parse: " << children->size() <<std::endl;
-	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
-		RoseObject *child = children->get(i);
-		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
-			//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
-			std::cout << child->domain()->name() << " moved to trash" << std::endl; //
-			rose_move_to_trash(child);
-		}
-		else{ continue; } //make reference to new object that replaces old one in master
-	}
-
-
 	std::string refURI = std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
 	//make reference to prodout file from master
 	RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str());
@@ -822,8 +741,86 @@ int PutOut(stp_product_definition * prod){ //(product,relative_dir) for splittin
 	URIManager->should_go_to_uri(ref);
 	ProdOut->save(); //save ProdOut as prod->id().stp	*/
 
+	tag_subassembly(old_prod);
+	tag_shape_annotation(old_prod->design());
+	tag_step_extras(old_prod->design());
+
+
+	// Move all of the objects that we need to export over to the
+	// destination design.   It does not care
+	// where aggregates are though.
+	//
+	RoseCursor objs;
+	objs.traverse(obj->design());
+	objs.domain(ROSE_DOMAIN(RoseStructure));
+	while ((obj2 = objs.next()) != 0) {
+		if (stix_split_is_export(obj2) /*&& !rose_is_marked(obj2)*/) { obj2->copy(ProdOut); }//rose_mark_set(obj2);
+	}
+	
+	objs.traverse(obj->design());
+	objs.domain(ROSE_DOMAIN(RoseUnion));
+	while ((obj2 = objs.next()) != 0) { /*if (!rose_is_marked(obj2)) { */obj2->copy(ProdOut); } //}
+
+	ProdOut->save();
+
+	//move back
+	// Mark everything as having been exported for later use
+	//stix_split_all_trimmed(ProdOut);
+
+	//--------------------------------------------------
+	// Restore references to temporary objects and move everything to
+	// the original design
+	//stix_restore_all_tmps(ProdOut);
+
+	/*objs.traverse(ProdOut);
+	objs.domain(0);
+	while ((obj2 = objs.next()) != 0) {
+		// Ignore temporaries created for the split
+		if (!StixMgrSplitTmpObj::find(obj2)) obj2->move(old_prod->design());
+	}
+	*/
 	delete ProdOut;
-	return 0; 
+}
+
+int PutOutHelper(stp_product_definition * pd){
+	//mark subassembly, shape_annotation, and step_extras
+	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
+	stp_product_definition_formation * pdf = pd->formation();
+	stp_product * p = pdf ? pdf->of_product() : 0;
+
+	unsigned i, sz;
+	// Does this have real shapes?
+	if (pm->child_nauos.size()) {
+		printf("IGNORING PD #%lu (%s) (assembly)\n",
+		pd->entity_id(), p->name() ? p->name() : ""); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
+
+		// recurse to all subproducts, do this even if there is geometry?
+		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
+			stix_split_delete_all_marks(pd->design());
+			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i])); // , dstdir);
+		}
+	}
+	else {
+	for (i = 0, sz = pm->shapes.size(); i<sz; i++) {
+		if (has_geometry(pm->shapes[i])) break;
+	}
+
+	// no shapes with real geometry
+	if (i<sz) {
+		printf("EXPORTING PD #%lu (%s)\n",
+		pd->entity_id(), p->name() ? p->name() : "");
+
+		PutOut(pd);
+	}
+	else {
+		printf("IGNORING PD #%lu (%s) (no geometry)\n",
+		pd->entity_id(), p->name() ? p->name() : "");
+
+		return 0;
+
+		}
+	}
+	return 0;
 }
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
@@ -841,16 +838,20 @@ int split(RoseDesign * master){
 	
 	//rose_compute_backptrs(master);
 	stix_tag_asms(master);
-	//StixMgrProperty::tag_design(master);
-	//StixMgrPropertyRep::tag_design(master);
+	StixMgrProperty::tag_design(master);
+	StixMgrPropertyRep::tag_design(master);
 	
 
 	StixMgrSplitStatus::export_only_needed = 1;
 	printf ("\nPRODUCT TREE ====================\n");
 	rose_mark_begin();
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		PutOut(roots[i]);
+		PutOutHelper(roots[i]);
+	}
+
+	for (i = 0, sz = roots.size(); i < sz; i++){
 		rose_move_to_trash(roots[i]);
+		//delete roots children?
 	}
 
 	rose_mark_end();
