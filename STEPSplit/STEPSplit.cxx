@@ -843,14 +843,15 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	unsigned i, sz;
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
-		printf("IGNORING PD #%lu (%s) (assembly)\n",
-		pd->entity_id(), (p->name()) ? p->name() : ""); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
+		printf("IGNORING PD #%lu (%s) (assembly) %s\n",
+		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
 		dir.append("/");
 		dir.append(name);
 		std::string tmpdir = dir;
 		tmpdir.append("1");
 		
 		if (!rose_dir_exists(tmpdir.c_str())){
+			std::cout << dir << std::endl;
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
 		}
@@ -864,7 +865,6 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
 		}
-		std::cout << "mkdir outpus this: " << rose_mkdir(dir.c_str()) << "\n" << std::endl;
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
@@ -907,7 +907,7 @@ int split(RoseDesign * master, std::string dir){
 	StpAsmProductDefVec roots;
 	stix_find_root_products (&roots, master); 
 	
-	//rose_compute_backptrs(master);
+	rose_compute_backptrs(master);
 	stix_tag_asms(master);
 	StixMgrProperty::tag_design(master);
 	StixMgrPropertyRep::tag_design(master);
