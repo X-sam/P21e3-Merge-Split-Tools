@@ -21,6 +21,50 @@
 
 //####################### markers/taggers ##########################
 
+static void copy_header(RoseDesign * dst, RoseDesign * src)
+{
+	unsigned i, sz;
+	// Copy over the header information from the original
+	dst->initialize_header();
+	dst->header_name()->originating_system(src->header_name()->originating_system());
+	dst->header_name()->authorisation(src->header_name()->authorisation());
+	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+		dst->header_name()->author()->add(
+		src->header_name()->author()->get(i)
+		);
+
+	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+		dst->header_name()->organization()->add(
+		src->header_name()->organization()->get(i)
+		);
+
+	RoseStringObject desc = "Extracted from STEP assembly: ";
+	desc += src->name();
+	desc += ".";
+	desc += src->fileExtension();
+	dst->header_description()->description()->add(desc);
+}
+
+
+static void copy_schema(RoseDesign * dst, RoseDesign * src)
+{
+	// Make the new files the same schema unless the original AP does
+	// not have the external reference definitions.
+	//
+	switch (stplib_get_schema(src)) {
+	case stplib_schema_ap203e2:
+	case stplib_schema_ap214:
+	case stplib_schema_ap242:
+		stplib_put_schema(dst, stplib_get_schema(src));
+		break;
+
+	case stplib_schema_ap203:
+	default:
+		stplib_put_schema(dst, stplib_schema_ap214);
+		break;
+	}
+}
+
 void tag_listleaf_for_export(
 	RoseDesign * d,
 	RoseDomain * dom,
@@ -673,7 +717,7 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 }
 
 //takes pointer to a RoseObject from Master and creates a
-void PutOut(stp_product_definition * prod){ //(product,relative_dir) for splitting the code
+void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
 
 	if (!prod) return; 
 	RoseObject * obj = ROSE_CAST(RoseObject, prod);
@@ -697,8 +741,10 @@ void PutOut(stp_product_definition * prod){ //(product,relative_dir) for splitti
 	RoseDesign * ProdOut = new RoseDesign(ProdOutName.c_str());
 	//ListOfRoseObject refParents; depricated
 
-
 	prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
+	ProdOut->fileDirectory(dir.c_str());
+	copy_header (ProdOut, obj->design());
+    copy_schema (ProdOut, obj->design());
 //	markChildren(obj); //marks children and removes them from master if obj is the only parent
 	ProdOut->save();
 	RoseObject * obj2;
@@ -813,7 +859,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 		printf("EXPORTING PD #%lu (%s)\n",
 		pd->entity_id(), p->name() ? p->name() : "");
 
-		PutOut(pd);
+		PutOut(pd,dir);
 	}
 	else {
 		printf("IGNORING PD #%lu (%s) (no geometry)\n",
@@ -873,7 +919,7 @@ int main(int argc, char* argv[])
 	//    rose_p28_init();	// support xml read/write
 	FILE *out;
 	out = fopen("log.txt", "w");
-	//ROSE.error_reporter()->error_file(out);
+	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 
 	/* Create a RoseDesign to hold the output data*/
