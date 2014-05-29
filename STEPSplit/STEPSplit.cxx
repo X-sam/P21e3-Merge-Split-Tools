@@ -872,6 +872,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 			std::cout << dir << std::endl;
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
+			PutOut(pd, dir);
 		}
 		else{ //make different dir
 			std::cout << dir << std::endl;
@@ -882,6 +883,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 			}
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
+			PutOut(pd, dir);
 		}
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
