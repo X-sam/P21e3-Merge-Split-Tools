@@ -753,7 +753,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 //	markChildren(obj); //marks children and removes them from master if obj is the only parent
 	ProdOut->save();
 	RoseObject * obj2;
-	
+
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
@@ -782,7 +782,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	} //*/
 	///printf("\t%d\n", prod->entity_id());
 	ProdOut->addName(ProdOutName.c_str(), prod); //add anchor to ProdOut
-	
+
 	std::string refURI = dir + "/" + std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
 	//make reference to prodout file from master
 	RoseReference *ref = rose_make_ref(obj->design(), refURI.c_str());
@@ -805,12 +805,12 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	objs.traverse(obj->design());
 	objs.domain(ROSE_DOMAIN(RoseStructure));
 	while ((obj2 = objs.next()) != 0) {
-		if (stix_split_is_export(obj2) /*&& !rose_is_marked(obj2)*/) { obj2->copy(ProdOut); }//rose_mark_set(obj2);
+		if (stix_split_is_export(obj2) && !rose_is_marked(obj2)) { obj2->copy(ProdOut); }//rose_mark_set(obj2);
 	}
-	
+
 	objs.traverse(obj->design());
 	objs.domain(ROSE_DOMAIN(RoseUnion));
-	while ((obj2 = objs.next()) != 0) { /*if (!rose_is_marked(obj2)) { */obj2->copy(ProdOut); } //}
+	while ((obj2 = objs.next()) != 0) { if (!rose_is_marked(obj2)) { obj2->copy(ProdOut); } }
 
 	ProdOut->save();
 
