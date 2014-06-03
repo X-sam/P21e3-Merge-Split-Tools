@@ -29,10 +29,10 @@ int PutItem(RoseObject *obj, RoseDesign* output)
 {
 	RoseDesign * child = obj->design();
 	if (child == output) return 0;
-	std::cout << "Moving " << obj->domain()->name() <<" id#: " <<obj->entity_id() <<std::endl;
-	std::cout << "Size of Child design: " << child->size() <<"\n\tSize of output design: " << output->size() <<"\n\tTotal size of child and output: " <<child->size()+output->size() <<std::endl;
+//	std::cout << "Moving " << obj->domain()->name() <<" id#: " <<obj->entity_id() <<std::endl;
+//	std::cout << "Size of Child design: " << child->size() <<"\n\tSize of output design: " << output->size() <<"\n\tTotal size of child and output: " <<child->size()+output->size() <<std::endl;
 	obj->move(output, INT_MAX,TRUE);
-	std::cout << "Size of Child design After: " << child->size() << "\n\tSize of output design After: " << output->size() << "\n\tTotal size of child and output after: " <<child->size()+output->size() <<std::endl;
+//	std::cout << "Size of Child design After: " << child->size() << "\n\tSize of output design After: " << output->size() << "\n\tTotal size of child and output after: " <<child->size()+output->size() <<std::endl;
 	return 1;
 }
 
