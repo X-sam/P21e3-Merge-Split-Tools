@@ -122,13 +122,13 @@ int main(int argc, char* argv[])
 			count++;
 			
 			a_obj->getAIMObjects(aimObjs);
-			//mark aimobjects
-			for (i = 0, sz = aimObjs->size(); i < sz; i++){
-				rose_mark_set(aimObjs->get(i));
-			}
+
 			RoseObject * aimObj;
 
 			ARMresolveReferences(aimObjs);
+
+
+
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
 
@@ -137,13 +137,29 @@ int main(int argc, char* argv[])
 				/*if (aimObj->design() == geo) {
 					std::cout << "moved: " << std::endl;
 				}*/
-				addRefAndAnchor(aimObj, geo, PMI, "");
+				rose_mark_set(aimObj);
+				//addRefAndAnchor(aimObj, geo, PMI, "");
 				
 			}
-			/*//make references and anchors, but only if they are needed
+
+
+			//make references and anchors, but only if they are needed
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
-			}*/
+
+				ListOfRoseObject parents;
+				unsigned int k, sz;
+				aimObj->usedin(NULL, NULL, &parents); //finds parents
+
+				for (k = 0, sz = parents.size(); k < sz; k++){
+					RoseObject * parent = parents.get(k);
+					if (parent->design() == PMI){ //if parent is not marked then it is not a child of the object being split and needs to stay
+						addRefAndAnchor(aimObj, geo, PMI, "");
+					}
+				}
+
+
+			}
 		}
 	}
 
