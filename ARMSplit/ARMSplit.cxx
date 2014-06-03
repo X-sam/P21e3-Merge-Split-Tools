@@ -14,10 +14,53 @@
 
 #pragma comment(lib,"stpcad_stix.lib")
 
+static void copy_header(RoseDesign * dst, RoseDesign * src)
+{
+	unsigned i, sz;
+	// Copy over the header information from the original
+	dst->initialize_header();
+	dst->header_name()->originating_system(src->header_name()->originating_system());
+	dst->header_name()->authorisation(src->header_name()->authorisation());
+	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+		dst->header_name()->author()->add(
+		src->header_name()->author()->get(i)
+		);
+
+	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+		dst->header_name()->organization()->add(
+		src->header_name()->organization()->get(i)
+		);
+
+	RoseStringObject desc = "Extracted from STEP assembly: ";
+	desc += src->name();
+	desc += ".";
+	desc += src->fileExtension();
+	dst->header_description()->description()->add(desc);
+}
+
+static void copy_schema(RoseDesign * dst, RoseDesign * src)
+{
+	// Make the new files the same schema unless the original AP does
+	// not have the external reference definitions.
+	//
+	switch (stplib_get_schema(src)) {
+	case stplib_schema_ap203e2:
+	case stplib_schema_ap214:
+	case stplib_schema_ap242:
+		stplib_put_schema(dst, stplib_get_schema(src));
+		break;
+
+	case stplib_schema_ap203:
+	default:
+		stplib_put_schema(dst, stplib_schema_ap214);
+		break;
+	}
+}
+
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
 	ProdOutName.append(obj->domain()->name());
-	ProdOutName.append("_split_item#");
+	ProdOutName.append("_split_item");
 	ProdOutName.append(std::to_string(obj->entity_id()));
 	//ProdOutName = SafeName(ProdOutName);
 
@@ -53,24 +96,28 @@ int main(int argc, char* argv[])
 	RoseDesign *des = ROSE.useDesign("sp3-boxy_fmt_original.stp");
 	des->saveAs("PMI.stp");
 	RoseDesign *PMI = ROSE.useDesign("PMI.stp");
+	PMI->name(std::string(des->name() + std::string("_PMI")).c_str());
 	RoseDesign *geo = pnew RoseDesign;
+	geo->name(std::string (des->name() + std::string("_Geometry")).c_str());
 	geo->saveAs("geo.stp");
 	geo = ROSE.useDesign("geo.stp");
+	copy_schema(geo, PMI);
+	copy_header(geo, PMI);
 	stix_tag_units(PMI);
 	ARMpopulate(PMI);
 	//STModule
 	ARMCursor cur;
 	ARMObject *a_obj;
 	cur.traverse(PMI);
-	Geometric_dimension_IF  *tolly = NULL;
+	Workpiece_IF  *workpiece = NULL;
 	unsigned count = 0;
 	ListOfRoseObject *aimObjs = pnew ListOfRoseObject;
 	rose_mark_begin();
 	while ((a_obj = cur.next())) {
 		
-		std::cout << a_obj->getModuleName() << std::endl;
-		tolly = a_obj->castToGeometric_dimension_IF();
-		if (tolly) {
+		//std::cout << a_obj->getModuleName() << std::endl;
+		workpiece = a_obj->castToWorkpiece_IF();
+		if (workpiece) {
 			unsigned i, sz;
 			count++;
 			
@@ -80,30 +127,32 @@ int main(int argc, char* argv[])
 				rose_mark_set(aimObjs->get(i));
 			}
 			RoseObject * aimObj;
-			RoseObject * root = a_obj->getRootObject();
-			//root->copy(geo);
 
-			addRefAndAnchor(root, geo, PMI, "");
-			root->move(geo);
-			
-			
+			ARMresolveReferences(aimObjs);
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
-				//for attributes//parents?
-					//if not rose marked
+
+				//std::cout << "moving: " << aimObj->entity_id() << std::endl;
+				aimObj->move(geo, 1);
+				/*if (aimObj->design() == geo) {
+					std::cout << "moved: " << std::endl;
+				}*/
 				addRefAndAnchor(aimObj, geo, PMI, "");
-				aimObj->move(geo);
-				//rose_move_to_trash(aimObj);
+				
 			}
-			ARMresolveReferences(aimObjs);
-			std::cout << aimObjs->size() << std::endl;
-			//addRefAndAnchor(root, geo, PMI, "");
+			/*//make references and anchors, but only if they are needed
+			for (i = 0, sz = aimObjs->size(); i < sz; i++){
+				aimObj = aimObjs->get(i);
+			}*/
 		}
 	}
-	rose_empty_trash();
-	PMI->save();
+
+	update_uri_forwarding(PMI);
 	geo->save();
+	PMI->save();
+	
 	ARMsave(geo);
 	ARMsave(PMI);
+	rose_empty_trash();
 	return 0;
 }
