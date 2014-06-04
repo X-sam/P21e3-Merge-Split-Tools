@@ -197,16 +197,18 @@ int main(int argc, char* argv[])
 	curser.traverse(PMI->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
 	RoseObject * obj;
+	int count = 0;
 	//std::cout << "Curser size: " << curser.size() << std::endl;
 	while (obj = curser.next()){
 		RoseReference * ref = ROSE_CAST(RoseReference, obj);
 		RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
-		int count = 0;
-		while (rru = rru->next_for_ref()){
-			count++;
+		count = 0;
+		if (!rru){
+			rose_move_to_trash(obj);
 		}
-		if (count = 0){
-			std::cout << "empty reference" << std::endl;
+		else{
+			while (rru = rru->next_for_ref()){ count++; }
+			if (count > 0){ rose_move_to_trash(ref); }
 		}
 	}
 
