@@ -206,10 +206,6 @@ int main(int argc, char* argv[])
 		if (!rru){
 			rose_move_to_trash(obj);
 		}
-		else{
-			while (rru = rru->next_for_ref()){ count++; }
-			if (count > 0){ rose_move_to_trash(ref); }
-		}
 	}
 
 
