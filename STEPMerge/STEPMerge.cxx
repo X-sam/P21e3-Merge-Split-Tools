@@ -22,17 +22,17 @@ std::vector<std::string>blackorwhitelist;
 bool blacklist = true;	//Default the blackorwhitelist to being a blacklist, of size 0. AKA all files allowed.
 
 //Takes in a url and an output file name, goes online, downloads file, and puts it at location specified by output.
-int getfromweb(std::string url,std::string out);
+int getfromweb(std::string url, std::string out);
 
 //Takes object, puts itself and all of its children in the output design
 int PutItem(RoseObject *obj, RoseDesign* output)
 {
 	RoseDesign * child = obj->design();
 	if (child == output) return 0;
-//	std::cout << "Moving " << obj->domain()->name() <<" id#: " <<obj->entity_id() <<std::endl;
-//	std::cout << "Size of Child design: " << child->size() <<"\n\tSize of output design: " << output->size() <<"\n\tTotal size of child and output: " <<child->size()+output->size() <<std::endl;
-	obj->move(output, INT_MAX,TRUE);
-//	std::cout << "Size of Child design After: " << child->size() << "\n\tSize of output design After: " << output->size() << "\n\tTotal size of child and output after: " <<child->size()+output->size() <<std::endl;
+	//	std::cout << "Moving " << obj->domain()->name() <<" id#: " <<obj->entity_id() <<std::endl;
+	//	std::cout << "Size of Child design: " << child->size() <<"\n\tSize of output design: " << output->size() <<"\n\tTotal size of child and output: " <<child->size()+output->size() <<std::endl;
+	obj->move(output, INT_MAX, TRUE);
+	//	std::cout << "Size of Child design After: " << child->size() << "\n\tSize of output design After: " << output->size() << "\n\tTotal size of child and output after: " <<child->size()+output->size() <<std::endl;
 	return 1;
 }
 
@@ -51,16 +51,16 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 	//Split that into "filename.stp" and "item1234"
 	int poundpos = URI.find_first_of('#');
 	std::string reffile = URI.substr(0, poundpos);	//reffile contains "filename.stp"
-	std::string anchor = URI.substr(poundpos+1);	//anchor contains "item1234"		
+	std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"		
 	//Figure out if it's a local file or not
 	if (reffile.find_first_of('/'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
 	{
 		//figure out if it is a url
-		if (reffile.find("http://")!=std::string::npos || reffile.find("ftp://")!=std::string::npos)
+		if (reffile.find("http://") != std::string::npos || reffile.find("ftp://") != std::string::npos)
 		{
 			//It's a url so go get it from the web
 			int lastslash = reffile.find_last_of('/');
-			std::string out(reffile.begin()+lastslash+1,reffile.end());
+			std::string out(reffile.begin() + lastslash + 1, reffile.end());
 			bool alreadyhavefile = false;
 			for (auto i : downloaded)
 			{
@@ -122,7 +122,9 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
 	do
 	{
-		//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() <<  std::endl;
+		if (rru == NULL) break;
+		//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() << std::endl;
+
 		if (rru->user_att()->isSelect()) {
 			rru->user()->putObject(
 				rose_create_select(rru->user_att()->slotDomain(), obj),
@@ -130,7 +132,7 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 				rru->user_idx()
 				);
 		}
-		else{ 
+		else{
 			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
 		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
@@ -156,13 +158,13 @@ int parsecmdline(int argc, char*argv[], std::string &infilename, std::string &ou
 			}
 		}
 		else if (strcmp("-a", argv[i]))	//We Have an allow list
-		{ 
-			blacklist=false; 
+		{
+			blacklist = false;
 			i++;
 			while (i < argc)
 			{
-				if (strcmp("-i",argv[i]))
-				blackorwhitelist.push_back(argv[i]);
+				if (strcmp("-i", argv[i]))
+					blackorwhitelist.push_back(argv[i]);
 				i++;
 			}
 		}
@@ -180,19 +182,19 @@ int main(int argc, char* argv[])
 	options.push_back("-a [filelist] Only allow listed children <Cannot be used alongside -i>");
 	if (argc < 3)
 	{
-		std::cout << "Usage: " << "STEPMerge.exe Master Output [Options]" << std::endl <<"OPTIONS:\n";
-		for (int i = 0; i < options.size();i++)
+		std::cout << "Usage: " << "STEPMerge.exe Master Output [Options]" << std::endl << "OPTIONS:\n";
+		for (int i = 0; i < options.size(); i++)
 		{
 			std::cout << options[i] << std::endl;
 		}
 		return EXIT_FAILURE;
 	}
 	std::string infilename, outfilename;
-	if(-1==parsecmdline(argc,argv,infilename,outfilename)) return EXIT_FAILURE;
+	if (-1 == parsecmdline(argc, argv, infilename, outfilename)) return EXIT_FAILURE;
 	stplib_init();	// initialize merged cad library
-//    rose_p28_init();	// support xml read/write
+	//    rose_p28_init();	// support xml read/write
 	FILE *out;
-	out=fopen("log.txt","w");
+	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
 	ROSE.quiet(0);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
@@ -244,14 +246,14 @@ int main(int argc, char* argv[])
 		//DeleteFileA(i.data());
 	}
 	design->save();
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 
 //TODO: Make platform agnostic. Consider using wget or something similar.
-int getfromweb(std::string url,std::string out)
+int getfromweb(std::string url, std::string out)
 {
 	HRESULT hr;
-	hr = URLDownloadToFile(0, url.data(),out.data(), 0, 0);
+	hr = URLDownloadToFile(0, url.data(), out.data(), 0, 0);
 	//std::cout << hr;
 	if (hr == S_OK) return 0;
 	else return -1;
