@@ -125,27 +125,28 @@ int main(int argc, char* argv[])
 			RoseObject * aimObj;
 			
 			ARMresolveReferences(aimObjs);
-			
+			rose_compute_backptrs(PMI);
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
 
 				//std::cout << "moving: " << aimObj->entity_id() << std::endl;
 				//rose_mark_set(aimObj);
-				aimObj->move(geo, 1);
-
+				
+				
+				rose_compute_backptrs(geo);
 				ListOfRoseObject roseParents;
 				aimObj->usedin(NULL, NULL, &roseParents);
+				if (roseParents.size() == 0) { std::cout << "1" ; }
 				for (unsigned int i = 0; i < roseParents.size(); i++){
-
-					if (roseParents.get(i)->design() == PMI){
-						std::cout << roseParents.get(i)->design()->name() << std::endl;
+					RoseObject * parent = roseParents.get(i);
+					if (parent->design() == PMI){
+						std::cout << roseParents.get(i)->design()->name() << roseParents.size()<< "\t";
 					}
 				}
-			
-
-				//ARMresolveOrphan(a_obj, aimObj);
-
-				//addRefAndAnchor(aimObj, geo, PMI, "");
+		
+				//moves evyerthing
+				aimObj->move(geo, 1);
+				addRefAndAnchor(aimObj, geo, PMI, ""); // old ref creations, made too many refs and had repeats
 				
 			}		
 		}
@@ -190,6 +191,7 @@ int main(int argc, char* argv[])
 	*/
 	rose_mark_end();
 	update_uri_forwarding(PMI);
+
 	ARMgc(PMI);
 	ARMgc(geo);
 	rose_empty_trash();
