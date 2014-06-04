@@ -14,49 +14,6 @@
 
 #pragma comment(lib,"stpcad_stix.lib")
 
-static void copy_header(RoseDesign * dst, RoseDesign * src)
-{
-	unsigned i, sz;
-	// Copy over the header information from the original
-	dst->initialize_header();
-	dst->header_name()->originating_system(src->header_name()->originating_system());
-	dst->header_name()->authorisation(src->header_name()->authorisation());
-	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
-		dst->header_name()->author()->add(
-		src->header_name()->author()->get(i)
-		);
-
-	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
-		dst->header_name()->organization()->add(
-		src->header_name()->organization()->get(i)
-		);
-
-	RoseStringObject desc = "Extracted from STEP assembly: ";
-	desc += src->name();
-	desc += ".";
-	desc += src->fileExtension();
-	dst->header_description()->description()->add(desc);
-}
-
-static void copy_schema(RoseDesign * dst, RoseDesign * src)
-{
-	// Make the new files the same schema unless the original AP does
-	// not have the external reference definitions.
-	//
-	switch (stplib_get_schema(src)) {
-	case stplib_schema_ap203e2:
-	case stplib_schema_ap214:
-	case stplib_schema_ap242:
-		stplib_put_schema(dst, stplib_get_schema(src));
-		break;
-
-	case stplib_schema_ap203:
-	default:
-		stplib_put_schema(dst, stplib_schema_ap214);
-		break;
-	}
-}
-
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
 	ProdOutName.append(obj->domain()->name());
