@@ -87,11 +87,10 @@ int main(int argc, char* argv[])
 	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
-	//ST_MODULE_FORCE_LOAD();
-	/* Create a RoseDesign to hold the output data*/
+	ST_MODULE_FORCE_LOAD();
 
+//##################### INITILIZE DESIGNS #####################
 	printf("Reading file '%s'\n", "sp3-boxy_fmt_original.stp");
-
 	// Read a STEP file and dimension the workpiece in that file
 	RoseDesign *des = ROSE.useDesign("sp3-boxy_fmt_original.stp");
 	des->saveAs("PMI.stp");
@@ -105,28 +104,24 @@ int main(int argc, char* argv[])
 	copy_header(geo, PMI);
 	stix_tag_units(PMI);
 	ARMpopulate(PMI);
+//#############################################################
+
 	//STModule
-	ARMCursor cur;
+	ARMCursor cur; //arm cursor
 	ARMObject *a_obj;
 	cur.traverse(PMI);
 	Workpiece_IF  *workpiece = NULL;
-	unsigned count = 0;
+
 	ListOfRoseObject *aimObjs = pnew ListOfRoseObject;
 	rose_mark_begin();
 	while ((a_obj = cur.next())) {
 		
-		//std::cout << a_obj->getModuleName() << std::endl;
 		workpiece = a_obj->castToWorkpiece_IF();
 		if (workpiece) {
 			unsigned i, sz;
-			count++;
 			
 			a_obj->getAIMObjects(aimObjs);
-			//mark aimobjects
-			for (i = 0, sz = aimObjs->size(); i < sz; i++){
-				rose_mark_set(aimObjs->get(i));
-				
-			}
+			
 			RoseObject * aimObj;
 			
 			ARMresolveReferences(aimObjs);
@@ -135,42 +130,72 @@ int main(int argc, char* argv[])
 				aimObj = aimObjs->get(i);
 
 				//std::cout << "moving: " << aimObj->entity_id() << std::endl;
+				//rose_mark_set(aimObj);
+				aimObj->move(geo, 1);
+
+				ListOfRoseObject roseParents;
+				aimObj->usedin(NULL, NULL, &roseParents);
+				for (unsigned int i = 0; i < roseParents.size(); i++){
+
+					if (roseParents.get(i)->design() == PMI){
+						std::cout << roseParents.get(i)->design()->name() << std::endl;
+					}
+				}
+			
+
+				//ARMresolveOrphan(a_obj, aimObj);
+
 				//addRefAndAnchor(aimObj, geo, PMI, "");
-				aimObj->move(geo, INT_MAX);
-				addRefAndAnchor(aimObj, geo, PMI, "");
 				
-			}
-			//ARMObjectVec armVec;
-			//ARMresolveOrphans(armVec);
-			/*
+			}		
+		}
+	}
 
-			//make references and anchors, but only if they are needed
-			for (i = 0, sz = aimObjs->size(); i < sz; i++){
-				aimObj = aimObjs->get(i);
 
-				ListOfRoseObject parents;
-				unsigned int k, sz;
-				aimObj->usedin(NULL, NULL, &parents); //finds parents
+	/*
+	//rose_compute_backptrs()
+	rose_clear_visit_marks();
+	cur.traverse(PMI);
+	while (a_obj = cur.next()){
+		unsigned i, sz;
+		//std::cout << a_obj->getModuleName() << std::endl;
+		
+		a_obj->getAIMObjects(aimObjs);
+		for (i = 0, sz = aimObjs->size(); i < sz; i++){
+			RoseObject * aimObj = aimObjs->get(i);
 
-				for (k = 0, sz = parents.size(); k < sz; k++){
-					RoseObject * parent = parents.get(k);
-					if (parent->design() == PMI){ //if parent is not marked then it is not a child of the object being split and needs to stay
+			if (rose_is_marked(aimObj) ){ continue; } //no reason to visit a rose_marked object
+			
+			ListOfRoseObject *children = new ListOfRoseObject;
+			aimObj->findObjects(children);// , 1, ROSE_FALSE);
+
+			for (unsigned int i = 0; i < children->size(); i++){
+				RoseObject *child = children->get(i);
+				if (child->design() == geo){// && aimObj->design() != geo){
+					
+					if (rose_is_marked(child)){ //if child is marked then a reference to it already exists, point obj to ref instead of child object in geometry
+						
+						continue;
+					}
+					else{
+						rose_mark_set(child);
 						addRefAndAnchor(aimObj, geo, PMI, "");
 					}
 				}
-
-
+				//else { std::cout << aimObj->design()->name() << "\t"; }
 			}
-			*/
+			rose_mark_set(aimObj);
 		}
 	}
-	//
-	
+	*/
+	rose_mark_end();
 	update_uri_forwarding(PMI);
+	ARMgc(PMI);
+	ARMgc(geo);
 	rose_empty_trash();
 	geo->save();
 	PMI->save();
-	ARMgc(PMI);
+	
 
 	ARMsave(geo);
 	ARMsave(PMI);
