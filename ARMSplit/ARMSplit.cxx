@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
 	RoseDesign *des = ROSE.useDesign("sp3-boxy_fmt_original.stp");
 	des->saveAs("PMI.stp");
 	RoseDesign *PMI = ROSE.useDesign("PMI.stp");
-	PMI->name(std::string(des->name() + std::string("_PMI")).c_str());
+	//PMI->name(std::string(des->name() + std::string("_PMI")).c_str()); //Breaks URIstuff and results in no references beign made in PMI
 	RoseDesign *geo = pnew RoseDesign;
 	geo->name(std::string (des->name() + std::string("_Geometry")).c_str());
 	geo->saveAs("geo.stp");
@@ -122,26 +122,27 @@ int main(int argc, char* argv[])
 			count++;
 			
 			a_obj->getAIMObjects(aimObjs);
-
+			//mark aimobjects
+			for (i = 0, sz = aimObjs->size(); i < sz; i++){
+				rose_mark_set(aimObjs->get(i));
+				
+			}
 			RoseObject * aimObj;
-
+			
 			ARMresolveReferences(aimObjs);
-
-
-
+			
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
 
 				//std::cout << "moving: " << aimObj->entity_id() << std::endl;
-				aimObj->move(geo, 1);
-				/*if (aimObj->design() == geo) {
-					std::cout << "moved: " << std::endl;
-				}*/
-				rose_mark_set(aimObj);
 				//addRefAndAnchor(aimObj, geo, PMI, "");
+				aimObj->move(geo, INT_MAX);
+				addRefAndAnchor(aimObj, geo, PMI, "");
 				
 			}
-
+			//ARMObjectVec armVec;
+			//ARMresolveOrphans(armVec);
+			/*
 
 			//make references and anchors, but only if they are needed
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
@@ -160,15 +161,19 @@ int main(int argc, char* argv[])
 
 
 			}
+			*/
 		}
 	}
-
+	//
+	
 	update_uri_forwarding(PMI);
+	rose_empty_trash();
 	geo->save();
 	PMI->save();
-	
+	ARMgc(PMI);
+
 	ARMsave(geo);
 	ARMsave(PMI);
-	rose_empty_trash();
+	
 	return 0;
 }
