@@ -132,7 +132,7 @@ int main(int argc, char* argv[])
 				//std::cout << "moving: " << aimObj->entity_id() << std::endl;
 				//rose_mark_set(aimObj);
 				
-				
+				/*
 				rose_compute_backptrs(geo);
 				ListOfRoseObject roseParents;
 				aimObj->usedin(NULL, NULL, &roseParents);
@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
 						std::cout << roseParents.get(i)->design()->name() << roseParents.size()<< "\t";
 					}
 				}
-		
+		*/
 				//moves evyerthing
 				aimObj->move(geo, 1);
 				addRefAndAnchor(aimObj, geo, PMI, ""); // old ref creations, made too many refs and had repeats
@@ -191,6 +191,25 @@ int main(int argc, char* argv[])
 	*/
 	rose_mark_end();
 	update_uri_forwarding(PMI);
+
+
+	RoseCursor curser;
+	curser.traverse(PMI->reference_section());
+	curser.domain(ROSE_DOMAIN(RoseReference));
+	RoseObject * obj;
+	//std::cout << "Curser size: " << curser.size() << std::endl;
+	while (obj = curser.next()){
+		RoseReference * ref = ROSE_CAST(RoseReference, obj);
+		RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
+		int count = 0;
+		while (rru = rru->next_for_ref()){
+			count++;
+		}
+		if (count = 0){
+			std::cout << "empty reference" << std::endl;
+		}
+	}
+
 
 	ARMgc(PMI);
 	ARMgc(geo);
