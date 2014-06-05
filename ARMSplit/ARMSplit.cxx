@@ -14,6 +14,49 @@
 
 #pragma comment(lib,"stpcad_stix.lib")
 
+static void copy_header(RoseDesign * dst, RoseDesign * src)
+{
+	unsigned i, sz;
+	// Copy over the header information from the original
+	dst->initialize_header();
+	dst->header_name()->originating_system(src->header_name()->originating_system());
+	dst->header_name()->authorisation(src->header_name()->authorisation());
+	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+		dst->header_name()->author()->add(
+		src->header_name()->author()->get(i)
+		);
+
+	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+		dst->header_name()->organization()->add(
+		src->header_name()->organization()->get(i)
+		);
+
+	RoseStringObject desc = "Extracted from STEP assembly: ";
+	desc += src->name();
+	desc += ".";
+	desc += src->fileExtension();
+	dst->header_description()->description()->add(desc);
+}
+
+static void copy_schema(RoseDesign * dst, RoseDesign * src)
+{
+	// Make the new files the same schema unless the original AP does
+	// not have the external reference definitions.
+	//
+	switch (stplib_get_schema(src)) {
+	case stplib_schema_ap203e2:
+	case stplib_schema_ap214:
+	case stplib_schema_ap242:
+		stplib_put_schema(dst, stplib_get_schema(src));
+		break;
+
+	case stplib_schema_ap203:
+	default:
+		stplib_put_schema(dst, stplib_schema_ap214);
+		break;
+	}
+}
+
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
 	ProdOutName.append(obj->domain()->name());
@@ -31,7 +74,6 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
-
 }
 
 int main(int argc, char* argv[])
@@ -57,8 +99,8 @@ int main(int argc, char* argv[])
 	geo->name(std::string (des->name() + std::string("_Geometry")).c_str());
 	geo->saveAs("geo.stp");
 	geo = ROSE.useDesign("geo.stp");
-	copy_schema(geo, PMI);
-	copy_header(geo, PMI);
+	//copy_schema(geo, PMI);
+	//copy_header(geo, PMI);
 	stix_tag_units(PMI);
 	ARMpopulate(PMI);
 //#############################################################
@@ -86,21 +128,6 @@ int main(int argc, char* argv[])
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
 
-				//std::cout << "moving: " << aimObj->entity_id() << std::endl;
-				//rose_mark_set(aimObj);
-				
-				/*
-				rose_compute_backptrs(geo);
-				ListOfRoseObject roseParents;
-				aimObj->usedin(NULL, NULL, &roseParents);
-				if (roseParents.size() == 0) { std::cout << "1" ; }
-				for (unsigned int i = 0; i < roseParents.size(); i++){
-					RoseObject * parent = roseParents.get(i);
-					if (parent->design() == PMI){
-						std::cout << roseParents.get(i)->design()->name() << roseParents.size()<< "\t";
-					}
-				}
-		*/
 				//moves evyerthing
 				aimObj->move(geo, 1);
 				addRefAndAnchor(aimObj, geo, PMI, ""); // old ref creations, made too many refs and had repeats
@@ -161,6 +188,12 @@ int main(int argc, char* argv[])
 		RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
 		count = 0;
 		if (!rru){
+			//delete anchor from geometry
+			std::string URI(ref->uri());
+			int poundpos = URI.find_first_of('#');
+			std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
+			geo->removeName(anchor.c_str());
+			//delete reference
 			rose_move_to_trash(obj);
 		}
 	}
