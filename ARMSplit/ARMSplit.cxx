@@ -76,6 +76,67 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	URIManager->should_go_to_uri(ref);
 }
 
+void deleteRefandAnchor(RoseReference * ref, RoseDesign * geo){
+	//delete anchor from geometry
+	std::string URI(ref->uri());
+	int poundpos = URI.find_first_of('#');
+	std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
+	geo->removeName(anchor.c_str());
+	//std::cout << "Removed: " << anchor << std::endl;
+	//delete reference 
+	rose_move_to_trash(ref);
+}
+
+//findobjectinworkspace
+void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
+	unsigned i, sz, sz2;
+	RoseReference * ref = ROSE_CAST(RoseReference, obj);
+	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
+
+	//find object being referenced
+	std::string URI(ref->uri());
+	int poundpos = URI.find_first_of('#');
+	std::string anchor = URI.substr(poundpos + 1);
+	RoseObject *rObj = geo->findObject(anchor.c_str());
+
+	if (!rose_is_marked(rObj)){
+		if (!rru){
+			deleteRefandAnchor(ref, geo);
+		}
+	}
+	else{
+		ListOfRoseObject parents;
+		
+		//std::cout << rObj->domain()->name() << " - " << parents.size() << std::endl;
+		bool deleteRef = true;
+		sz = parents.size();
+		//if rObj(object reffered to by reference) has a parent in PMI don't remove it
+		rObj->usedin(NULL, NULL, &parents);
+		for (i = 0; i < sz; i++){
+			RoseObject * parent = parents.get(i);
+			if (parent->design() != geo){
+				deleteRef = false;
+				//std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
+				break;
+			}
+		}
+		//if reference has at least 1 parent in PMI(not geo) keep it otherwise, remove it
+		ref->usedin(NULL, NULL, &parents);
+		sz2 = parents.size();
+		for (i = 0; i < sz2; i++){
+			RoseObject * parent = parents.get(i);
+			if (parent->design() != geo){
+				deleteRef = false;
+				//std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
+				break;
+			}
+			else { std::cout << "ref " << ref->domain()->name() << " has parent in : " << parent->design()->name() << "\t"; }
+		}
+		if (sz < 1 && sz2 < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
+		if (deleteRef) { deleteRefandAnchor(ref, geo); std::cout << rObj->domain()->name() << " has " << sz << "," << sz2 << " parents and is being removed" << std::endl; } //*/
+	} 
+}
+
 int main(int argc, char* argv[])
 {
 	
@@ -135,7 +196,7 @@ int main(int argc, char* argv[])
 
 				ListOfRoseObject parents;
 				aimObj->usedin(NULL, NULL, &parents);
-				if (parents.size() < 1){ rose_mark_set(aimObj); }//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl; }
+				if (parents.size() < 1){ rose_mark_set(aimObj); }//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl;}
 				
 			}		
 		}
@@ -151,28 +212,7 @@ int main(int argc, char* argv[])
 	int count = 0;
 	//std::cout << "Curser size: " << curser.size() << std::endl;
 	while (obj = curser.next()){
-		RoseReference * ref = ROSE_CAST(RoseReference, obj);
-		RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
-
-		//find object being referenced
-		std::string URI(ref->uri());
-		int poundpos = URI.find_first_of('#');
-		std::string anchor = URI.substr(poundpos + 1);
-		RoseObject *rObj = geo->findObject(anchor.c_str());
-
-		if (!rose_is_marked(rObj)){
-			if (!rru){
-				//delete anchor from geometry
-				std::string URI(ref->uri());
-				int poundpos = URI.find_first_of('#');
-				std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
-				geo->removeName(anchor.c_str());
-				//std::cout << "Removed: " << anchor << std::endl;
-				//delete reference 
-				rose_move_to_trash(obj);
-			}//*/
-		}
-		//else{ std::cout << rObj->domain()->name() << std::endl; }
+		removeExtraRefandAnchor(obj, geo);
 	}
 	rose_mark_end();
 
