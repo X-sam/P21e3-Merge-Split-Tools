@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 	//std::cout << "Curser size: " << curser.size() << std::endl;
 	while (obj = curser.next())
 	{
-		std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
+		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
 		//Pass the reference to AddItem, which will open the associated file 
 		//& handle adding the referenced item & its children to the new file.
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design);
