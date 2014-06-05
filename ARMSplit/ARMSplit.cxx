@@ -114,6 +114,8 @@ int main(int argc, char* argv[])
 
 	ListOfRoseObject *aimObjs = pnew ListOfRoseObject;
 	rose_mark_begin();
+
+//Creates all references that may be necessary
 	while ((a_obj = cur.next())) {
 		
 		workpiece = a_obj->castToWorkpiece_IF();
@@ -126,56 +128,22 @@ int main(int argc, char* argv[])
 			rose_compute_backptrs(PMI);
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
-
+			
 				//moves evyerthing
 				aimObj->move(geo, 1);
 				addRefAndAnchor(aimObj, geo, PMI, ""); // old ref creations, made too many refs and had repeats
+
+				ListOfRoseObject parents;
+				aimObj->usedin(NULL, NULL, &parents);
+				if (parents.size() < 1){ rose_mark_set(aimObj); }//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl; }
 				
 			}		
 		}
 	}
-
-
-	/*
-	//rose_compute_backptrs()
-	rose_clear_visit_marks();
-	cur.traverse(PMI);
-	while (a_obj = cur.next()){
-		unsigned i, sz;
-		//std::cout << a_obj->getModuleName() << std::endl;
-		
-		a_obj->getAIMObjects(aimObjs);
-		for (i = 0, sz = aimObjs->size(); i < sz; i++){
-			RoseObject * aimObj = aimObjs->get(i);
-
-			if (rose_is_marked(aimObj) ){ continue; } //no reason to visit a rose_marked object
-			
-			ListOfRoseObject *children = new ListOfRoseObject;
-			aimObj->findObjects(children);// , 1, ROSE_FALSE);
-
-			for (unsigned int i = 0; i < children->size(); i++){
-				RoseObject *child = children->get(i);
-				if (child->design() == geo){// && aimObj->design() != geo){
-					
-					if (rose_is_marked(child)){ //if child is marked then a reference to it already exists, point obj to ref instead of child object in geometry
-						
-						continue;
-					}
-					else{
-						rose_mark_set(child);
-						addRefAndAnchor(aimObj, geo, PMI, "");
-					}
-				}
-				//else { std::cout << aimObj->design()->name() << "\t"; }
-			}
-			rose_mark_set(aimObj);
-		}
-	}
-	*/
-	rose_mark_end();
+	
 	update_uri_forwarding(PMI);
 
-
+//Removes uneccesary References
 	RoseCursor curser;
 	curser.traverse(PMI->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
@@ -185,19 +153,28 @@ int main(int argc, char* argv[])
 	while (obj = curser.next()){
 		RoseReference * ref = ROSE_CAST(RoseReference, obj);
 		RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
-		count = 0;
-		/*if (!rru){
-			//delete anchor from geometry
-			std::string URI(ref->uri());
-			int poundpos = URI.find_first_of('#');
-			std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
-			geo->removeName(anchor.c_str());
-			std::cout << "Removed: " << anchor << std::endl;
-			//delete reference 
-			rose_move_to_trash(obj); 
-		}//*/
-	}
 
+		//find object being referenced
+		std::string URI(ref->uri());
+		int poundpos = URI.find_first_of('#');
+		std::string anchor = URI.substr(poundpos + 1);
+		RoseObject *rObj = geo->findObject(anchor.c_str());
+
+		if (!rose_is_marked(rObj)){
+			if (!rru){
+				//delete anchor from geometry
+				std::string URI(ref->uri());
+				int poundpos = URI.find_first_of('#');
+				std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
+				geo->removeName(anchor.c_str());
+				//std::cout << "Removed: " << anchor << std::endl;
+				//delete reference 
+				rose_move_to_trash(obj);
+			}//*/
+		}
+		//else{ std::cout << rObj->domain()->name() << std::endl; }
+	}
+	rose_mark_end();
 
 	ARMgc(PMI);
 	ARMgc(geo);
