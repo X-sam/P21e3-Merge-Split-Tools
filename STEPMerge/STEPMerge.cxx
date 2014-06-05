@@ -126,11 +126,15 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 		//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() << std::endl;
 
 		if (rru->user_att()->isSelect()) {
+			
+			RoseDomain * selectdomain = rru->user_att()->slotDomain();
+			RoseObject * sel = rru->user()->design()->pnewInstance(selectdomain);
 			rru->user()->putObject(
-				rose_create_select(rru->user_att()->slotDomain(), obj),
+				sel,
 				rru->user_att(),
 				rru->user_idx()
 				);
+			rose_put_nested_object((RoseUnion*)sel, obj);
 		}
 		else{
 			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
@@ -224,7 +228,7 @@ int main(int argc, char* argv[])
 	//std::cout << "Curser size: " << curser.size() << std::endl;
 	while (obj = curser.next())
 	{
-		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
+		std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
 		//Pass the reference to AddItem, which will open the associated file 
 		//& handle adding the referenced item & its children to the new file.
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design);
