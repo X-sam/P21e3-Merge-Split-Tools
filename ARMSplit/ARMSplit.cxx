@@ -109,6 +109,7 @@ int main(int argc, char* argv[])
 	ARMCursor cur; //arm cursor
 	ARMObject *a_obj;
 	cur.traverse(PMI);
+	
 	Workpiece_IF  *workpiece = NULL;
 
 	ListOfRoseObject *aimObjs = pnew ListOfRoseObject;
@@ -118,11 +119,9 @@ int main(int argc, char* argv[])
 		workpiece = a_obj->castToWorkpiece_IF();
 		if (workpiece) {
 			unsigned i, sz;
-			
-			a_obj->getAIMObjects(aimObjs);
-			
 			RoseObject * aimObj;
-			
+
+			a_obj->getAIMObjects(aimObjs);
 			ARMresolveReferences(aimObjs);
 			rose_compute_backptrs(PMI);
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
@@ -187,15 +186,16 @@ int main(int argc, char* argv[])
 		RoseReference * ref = ROSE_CAST(RoseReference, obj);
 		RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
 		count = 0;
-		if (!rru){
+		/*if (!rru){
 			//delete anchor from geometry
 			std::string URI(ref->uri());
 			int poundpos = URI.find_first_of('#');
 			std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
 			geo->removeName(anchor.c_str());
-			//delete reference
-			rose_move_to_trash(obj);
-		}
+			std::cout << "Removed: " << anchor << std::endl;
+			//delete reference 
+			rose_move_to_trash(obj); 
+		}//*/
 	}
 
 
