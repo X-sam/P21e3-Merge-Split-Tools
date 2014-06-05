@@ -57,7 +57,7 @@ static void copy_schema(RoseDesign * dst, RoseDesign * src)
 	}
 }
 
-void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master fiel for putting refs into
+void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir=""){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
 	ProdOutName.append(obj->domain()->name());
 	ProdOutName.append("_split_item");
@@ -157,9 +157,10 @@ int main(int argc, char* argv[])
 	RoseDesign *PMI = ROSE.useDesign("PMI.stp");
 	//PMI->name(std::string(des->name() + std::string("_PMI")).c_str()); //Breaks URIstuff and results in no references beign made in PMI
 	RoseDesign *geo = pnew RoseDesign;
-	geo->name(std::string (des->name() + std::string("_Geometry")).c_str());
-	geo->saveAs("geo.stp");
-	geo = ROSE.useDesign("geo.stp");
+	std::string geoname(des->name());
+	geoname.append("_Geometry");
+	geo->name(geoname.c_str());
+	geo->save();
 	//copy_schema(geo, PMI);
 	//copy_header(geo, PMI);
 	stix_tag_units(PMI);
@@ -173,47 +174,73 @@ int main(int argc, char* argv[])
 	
 	Workpiece_IF  *workpiece = NULL;
 
-	ListOfRoseObject *aimObjs = pnew ListOfRoseObject;
+	ListOfRoseObject aimObjs;
 	rose_mark_begin();
-
+	rose_compute_backptrs(PMI);
 //Creates all references that may be necessary
 	while ((a_obj = cur.next())) {
 		
 		workpiece = a_obj->castToWorkpiece_IF();
 		if (workpiece) {
+			aimObjs.emptyYourself();
 			unsigned i, sz;
 			RoseObject * aimObj;
-
-			a_obj->getAIMObjects(aimObjs);
-			ARMresolveReferences(aimObjs);
-			rose_compute_backptrs(PMI);
-			for (i = 0, sz = aimObjs->size(); i < sz; i++){
-				aimObj = aimObjs->get(i);
+			a_obj->getAIMObjects(&aimObjs);
+			ARMresolveReferences(&aimObjs);
+			//rose_compute_backptrs(PMI);
+			for (i = 0, sz = aimObjs.size(); i < sz; i++){
+				aimObj = aimObjs[i];
 			
 				//moves evyerthing
-				aimObj->move(geo, 1);
-				addRefAndAnchor(aimObj, geo, PMI, ""); // old ref creations, made too many refs and had repeats
+				aimObj->move(geo, 0);
 
-				ListOfRoseObject parents;
-				aimObj->usedin(NULL, NULL, &parents);
-				if (parents.size() < 1){ rose_mark_set(aimObj); }//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl;}
+				//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl;}
 				
-			}		
+			}
 		}
 	}
-	
+
+	RoseObject *obj;
+	RoseCursor curse;
+	curse.traverse(PMI);
+	curse.domain(ROSE_DOMAIN(RoseObject));
+	ListOfRoseObject children;
+	while (obj = curse.next())
+	{
+		children.emptyYourself();
+		obj->findObjects(&children, 0, ROSE_TRUE);
+		for (int i = 0; i < children.size(); i++)
+		{
+			auto child = children[i];
+			if (child->design() == geo && !rose_is_marked(child))
+			{
+				rose_mark_set(child);
+				std::string name(child->domain()->name());
+				if (name == "cartesian_point")
+				{
+					std::cout << "Child: " << child->entity_id() << std::endl;
+					std::cout << "Child used in:\n";
+					ListOfRoseObject parents;
+					std::cout << "\tobject: " << obj->design()->name() << " " << obj->domain()->name() << std::endl;
+					child->usedin(NULL, NULL, &parents);
+					for (int i = 0; i < parents.size(); i++) std::cout << "\tparent: " << parents[i]->design()->name() <<" " <<parents[i]->domain()->name() << std::endl;
+				}
+				addRefAndAnchor(child, geo, PMI);
+			}
+		}
+	}
 	update_uri_forwarding(PMI);
 
 //Removes uneccesary References
-	RoseCursor curser;
-	curser.traverse(PMI->reference_section());
-	curser.domain(ROSE_DOMAIN(RoseReference));
-	RoseObject * obj;
-	int count = 0;
+//	RoseCursor curser;
+//	curser.traverse(PMI->reference_section());
+//	curser.domain(ROSE_DOMAIN(RoseReference));
+//	RoseObject * obj;
+//	int count = 0;
 	//std::cout << "Curser size: " << curser.size() << std::endl;
-	while (obj = curser.next()){
-		removeExtraRefandAnchor(obj, geo);
-	}
+//	while (obj = curser.next()){
+//		removeExtraRefandAnchor(obj, geo);
+//	}
 	rose_mark_end();
 
 	ARMgc(PMI);
