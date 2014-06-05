@@ -109,7 +109,7 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 		if (!found) return 2;	//Whitelisted file result
 	}
 	RoseDesign * child = ROSE.findDesignInWorkspace(reffile.c_str());	//check if file is in memory.
-	if(child == NULL) ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
+	if(child == NULL) child = ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
 	if (!child) return -1;	//file doesn't work for some reason.
 	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
 	if (!obj) return -1;	//Couldn't find the anchor.
