@@ -141,7 +141,6 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
 	//child->save();
-	output->save();
 	return 0;
 }
 
@@ -240,7 +239,6 @@ int main(int argc, char* argv[])
 		else if (0 == returnval)	//Reference successfully transplanted.
 		{
 			rose_move_to_trash(obj);
-			rose_empty_trash();	//This deletes the reference from the new file, since we've replaced it with a local copy of the referenced object and it's children.
 		}
 		//TODO: Maybe add stuff for black/white-list cases and download error?
 	}
@@ -249,11 +247,12 @@ int main(int argc, char* argv[])
 		//Remove temporary files
 		//DeleteFileA(i.data());
 	}
+	rose_empty_trash();	//This deletes the reference from the new file, since we've replaced it with a local copy of the referenced object and it's children.
 	design->save();
 	return EXIT_SUCCESS;
 }
 
-//TODO: Make platform agnostic. Consider using wget or something similar.
+//TODO: Make platform agnostic. Consider using wget or something similar if in *nix environment.
 int getfromweb(std::string url, std::string out)
 {
 	HRESULT hr;
