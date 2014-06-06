@@ -66,7 +66,6 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 
 	ProdOut->addName(ProdOutName.c_str(), obj);
 
-	std::string refdir(dir);
 	std::string refURI = (std::string("geo.stp#") + ProdOutName);//uri for created reference to prod/obj
 
 	RoseReference *ref = rose_make_ref(master, refURI.c_str());
@@ -82,7 +81,7 @@ void deleteRefandAnchor(RoseReference * ref, RoseDesign * geo){
 	int poundpos = URI.find_first_of('#');
 	std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
 	geo->removeName(anchor.c_str());
-	//std::cout << "Removed: " << anchor << std::endl;
+
 	//delete reference 
 	rose_move_to_trash(ref);
 }
@@ -99,41 +98,71 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 	std::string anchor = URI.substr(poundpos + 1);
 	RoseObject *rObj = geo->findObject(anchor.c_str());
 
+	if (rObj->domain() == ROSE_DOMAIN(stp_product_definition) || rObj->domain() == ROSE_DOMAIN(stp_product_definition_shape)){
+		//print all info about these to test
+		//std::cout << 
+		return;
+	}
+
 	if (!rose_is_marked(rObj)){
 		if (!rru){
 			deleteRefandAnchor(ref, geo);
 		}
+		else{
+			ListOfRoseObject parents;
+			ref->usedin(NULL, NULL, &parents);
+			sz = parents.size();
+			int counter = 0;
+			if (rru->user()->entity_id()) {
+				counter++; //std::cout << rru->user()->domain()->name() << rru->user()->entity_id() << std::endl;
+			}
+			while (rru = rru->next_for_ref()){
+				if (rru->user()){
+					counter++;
+				}
+			}
+
+			if (sz == 0){ //rObj->domain() == ROSE_DOMAIN(stp_oriented_edge)){ 
+				std::cout << "type " << rObj->domain()->name() << "\n";
+				std::cout << "\thas " << counter << " parents in " << ref->design()->name() << std::endl;
+			}
+			if (counter == 0){ deleteRefandAnchor(ref, geo); }
+		}
 	}
 	else{
+		
 		ListOfRoseObject parents;
 		
 		//std::cout << rObj->domain()->name() << " - " << parents.size() << std::endl;
 		bool deleteRef = true;
-		sz = parents.size();
 		//if rObj(object reffered to by reference) has a parent in PMI don't remove it
 		rObj->usedin(NULL, NULL, &parents);
+		sz = parents.size();
 		for (i = 0; i < sz; i++){
 			RoseObject * parent = parents.get(i);
 			if (parent->design() != geo){
 				deleteRef = false;
-				//std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
-				break;
+				std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
 			}
 		}
-		//if reference has at least 1 parent in PMI(not geo) keep it otherwise, remove it
+
+		//if reference has at least 1 parent in PMI(not geo) keep it otherwise, remove it		
+		RoseDesign * PMI = ref->design();
 		ref->usedin(NULL, NULL, &parents);
-		sz2 = parents.size();
-		for (i = 0; i < sz2; i++){
+		unsigned count = 0;
+		for (i = 0, sz2 = parents.size(); i < sz2; i++){
 			RoseObject * parent = parents.get(i);
+			if (parent->entity_id() == 0) { count++; }
 			if (parent->design() != geo){
 				deleteRef = false;
-				//std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
-				break;
+				
 			}
-			else { std::cout << "ref " << ref->domain()->name() << " has parent in : " << parent->design()->name() << "\t"; }
+			else{ std::cout << "type " << rObj->domain()->name() << " has parent in: " << parent->design()->name() << "#" << parent->entity_id() << " of type " << parent->domain()->name() << "\t"; }		
 		}
-		if (sz < 1 && sz2 < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
-		if (deleteRef) { deleteRefandAnchor(ref, geo); std::cout << rObj->domain()->name() << " has " << sz << "," << sz2 << " parents and is being removed" << std::endl; } //*/
+		//sz2 = sz - count;
+		if (sz < 1 && (sz2 - count) < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
+		if (deleteRef) { deleteRefandAnchor(ref, geo); std::cout << " and has " << sz << "," << sz2 << ":" << count << " parents and is being removed" << std::endl; }
+		//else{ std::cout << rObj->domain()->name() << "\t"; }
 	} 
 }
 
@@ -155,7 +184,7 @@ int main(int argc, char* argv[])
 	RoseDesign *des = ROSE.useDesign("sp3-boxy_fmt_original.stp");
 	des->saveAs("PMI.stp");
 	RoseDesign *PMI = ROSE.useDesign("PMI.stp");
-	//PMI->name(std::string(des->name() + std::string("_PMI")).c_str()); //Breaks URIstuff and results in no references beign made in PMI
+
 	RoseDesign *geo = pnew RoseDesign;
 	geo->name(std::string (des->name() + std::string("_Geometry")).c_str());
 	geo->saveAs("geo.stp");
@@ -175,7 +204,7 @@ int main(int argc, char* argv[])
 
 	ListOfRoseObject *aimObjs = pnew ListOfRoseObject;
 	rose_mark_begin();
-
+	rose_compute_backptrs(PMI);
 //Creates all references that may be necessary
 	while ((a_obj = cur.next())) {
 		
@@ -183,17 +212,18 @@ int main(int argc, char* argv[])
 		if (workpiece) {
 			unsigned i, sz;
 			RoseObject * aimObj;
-
+			
 			a_obj->getAIMObjects(aimObjs);
+
 			ARMresolveReferences(aimObjs);
-			rose_compute_backptrs(PMI);
+			
 			for (i = 0, sz = aimObjs->size(); i < sz; i++){
 				aimObj = aimObjs->get(i);
 			
 				//moves evyerthing
-				aimObj->move(geo, 1);
-				addRefAndAnchor(aimObj, geo, PMI, ""); // old ref creations, made too many refs and had repeats
-
+				aimObj->move(geo, 0);
+				addRefAndAnchor(aimObj, geo, PMI, ""); //old ref creations, made too many refs and had repeats
+				
 				ListOfRoseObject parents;
 				aimObj->usedin(NULL, NULL, &parents);
 				if (parents.size() < 1){ rose_mark_set(aimObj); }//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl;}
@@ -215,7 +245,8 @@ int main(int argc, char* argv[])
 		removeExtraRefandAnchor(obj, geo);
 	}
 	rose_mark_end();
-
+	
+	
 	ARMgc(PMI);
 	ARMgc(geo);
 	rose_empty_trash();
@@ -225,6 +256,6 @@ int main(int argc, char* argv[])
 
 	ARMsave(geo);
 	ARMsave(PMI);
-	
+	rose_release_backptrs(PMI);
 	return 0;
 }
