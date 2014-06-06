@@ -1380,7 +1380,7 @@ int main (int argc, char ** argv)
 	    do_tree = 1;
 	    name_style = name_style_name;  // use different convention
 	    do_all = 0;
-	    do_mast = 1;
+	    do_mast = 0;
 	    do_top = 0;
 	}
 	else {

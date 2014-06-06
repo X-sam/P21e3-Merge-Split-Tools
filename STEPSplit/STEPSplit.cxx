@@ -652,7 +652,7 @@ void tag_shape_annotation(
 	tag_leaf_for_export(d, ROSE_DOMAIN(stp_dimensional_characteristic_representation), "dimension");
 
 }
-
+//##################################################################
 //##################################################################
 
 //if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
@@ -838,20 +838,8 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		p = prodf ? prodf->of_product() : 0;
 	} //*/
 	///printf("\t%d\n", prod->entity_id());
-	ProdOut->addName(ProdOutName.c_str(), prod); //add anchor to ProdOut
-
-	std::string refdir(dir.begin() + 3, dir.end());
-	std::string refURI = refdir + "/" + std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
-	//make reference to prodout file from master
-	RoseReference *ref = rose_make_ref(src, refURI.c_str());
-	ref->resolved(obj);
-	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
-	URIManager = MyURIManager::make(obj);
-	URIManager->should_go_to_uri(ref);
-	
+	addRefAndAnchor(obj, ProdOut, src, dir);
 	//itterate through advanced faces and make refs & anchors use addRefAndAnchor
-
-
 	ProdOut->save();
 
 	tag_subassembly(old_prod);
@@ -939,7 +927,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 			}
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
+			//PutOut(pd, dir); //make multi-assembly file
 		}
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
@@ -954,8 +942,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 
 	// no shapes with real geometry
 	if (i<sz) {
-		printf("EXPORTING PD #%lu (%s)\n",
-		pd->entity_id(), p->name() ? p->name() : "");
+		//printf("EXPORTING PD #%lu (%s)\n", 		pd->entity_id(), p->name() ? p->name() : "");
 		PutOut(pd, dir);
 	}
 	else {
@@ -992,6 +979,7 @@ int split(RoseDesign * master, std::string dir){
 	rose_mark_begin();
 	
 	for (i = 0, sz = roots.size(); i < sz; i++){
+		std::cout << roots[i]->domain()->name() << " " << sz << std::endl;
 		PutOutHelper(roots[i], dir);
 		///rose_empty_trash();
 	}
