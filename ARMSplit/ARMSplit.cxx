@@ -14,48 +14,7 @@
 
 #pragma comment(lib,"stpcad_stix.lib")
 
-static void copy_header(RoseDesign * dst, RoseDesign * src)
-{
-	unsigned i, sz;
-	// Copy over the header information from the original
-	dst->initialize_header();
-	dst->header_name()->originating_system(src->header_name()->originating_system());
-	dst->header_name()->authorisation(src->header_name()->authorisation());
-	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
-		dst->header_name()->author()->add(
-		src->header_name()->author()->get(i)
-		);
-
-	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
-		dst->header_name()->organization()->add(
-		src->header_name()->organization()->get(i)
-		);
-
-	RoseStringObject desc = "Extracted from STEP assembly: ";
-	desc += src->name();
-	desc += ".";
-	desc += src->fileExtension();
-	dst->header_description()->description()->add(desc);
-}
-
-static void copy_schema(RoseDesign * dst, RoseDesign * src)
-{
-	// Make the new files the same schema unless the original AP does
-	// not have the external reference definitions.
-	//
-	switch (stplib_get_schema(src)) {
-	case stplib_schema_ap203e2:
-	case stplib_schema_ap214:
-	case stplib_schema_ap242:
-		stplib_put_schema(dst, stplib_get_schema(src));
-		break;
-
-	case stplib_schema_ap203:
-	default:
-		stplib_put_schema(dst, stplib_schema_ap214);
-		break;
-	}
-}
+void handleAggregate(RoseObject * obj);
 
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir=""){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
@@ -76,65 +35,58 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	URIManager->should_go_to_uri(ref);
 }
 
-void deleteRefandAnchor(RoseReference * ref, RoseDesign * geo){
-	//delete anchor from geometry
-	std::string URI(ref->uri());
-	int poundpos = URI.find_first_of('#');
-	std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"
-	geo->removeName(anchor.c_str());
-	//std::cout << "Removed: " << anchor << std::endl;
-	//delete reference 
-	rose_move_to_trash(ref);
-}
-
-//findobjectinworkspace
-void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
-	unsigned i, sz, sz2;
-	RoseReference * ref = ROSE_CAST(RoseReference, obj);
-	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
-
-	//find object being referenced
-	std::string URI(ref->uri());
-	int poundpos = URI.find_first_of('#');
-	std::string anchor = URI.substr(poundpos + 1);
-	RoseObject *rObj = geo->findObject(anchor.c_str());
-
-	if (!rose_is_marked(rObj)){
-		if (!rru){
-			deleteRefandAnchor(ref, geo);
+void handleEntity(RoseObject * obj)
+{
+	auto atts = obj->attributes();
+	for (int i = 0; i < atts->size(); i++)
+	{
+		RoseAttribute *att = atts->get(i);
+		RoseObject * childobj = 0;
+		if (att->isEntity()) //== geo && !rose_is_marked(&att))
+		{
+			childobj = obj->getObject(att);
+		}
+		else if (att->isSelect())
+		{
+			childobj = rose_get_nested_object(ROSE_CAST(RoseUnion, obj->getObject(att)));
+		}
+		if (att->isAggregate())
+		{
+		handleAggregate(obj->getObject(att));
+		continue;
+		}
+		if (!childobj) continue;
+		if (childobj->design() != obj->design() && !rose_is_marked(childobj))
+		{
+			rose_mark_set(childobj);
+			std::string name(childobj->domain()->name());
+			addRefAndAnchor(childobj, childobj->design(), obj->design());
 		}
 	}
-	else{
-		ListOfRoseObject parents;
-		
-		//std::cout << rObj->domain()->name() << " - " << parents.size() << std::endl;
-		bool deleteRef = true;
-		sz = parents.size();
-		//if rObj(object reffered to by reference) has a parent in PMI don't remove it
-		rObj->usedin(NULL, NULL, &parents);
-		for (i = 0; i < sz; i++){
-			RoseObject * parent = parents.get(i);
-			if (parent->design() != geo){
-				deleteRef = false;
-				//std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
-				break;
-			}
+}
+
+void handleAggregate(RoseObject * obj)
+{
+	if (obj == NULL) return;
+	if (!obj->attributes()->first()->isObject()) return;
+	unsigned i, sz;
+	for (i = 0, sz = obj->size(); i < sz; i++)
+	{
+		auto childobj = obj->getObject(i);
+		if (childobj == NULL) continue;
+		if (childobj->isa(ROSE_DOMAIN(RoseUnion)))
+		{
+			childobj = rose_get_nested_object(ROSE_CAST(RoseUnion, childobj));
+			if (childobj == NULL) continue;	//Nested object contains nothing? TODO: Ask Dave.
 		}
-		//if reference has at least 1 parent in PMI(not geo) keep it otherwise, remove it
-		ref->usedin(NULL, NULL, &parents);
-		sz2 = parents.size();
-		for (i = 0; i < sz2; i++){
-			RoseObject * parent = parents.get(i);
-			if (parent->design() != geo){
-				deleteRef = false;
-				//std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
-				break;
-			}
-			else { std::cout << "ref " << ref->domain()->name() << " has parent in : " << parent->design()->name() << "\t"; }
+		if (childobj->isa(ROSE_DOMAIN(RoseAggregate))) handleAggregate(childobj);
+		if (childobj->design() != obj->design() && !rose_is_marked(childobj))
+		{
+			rose_mark_set(childobj);
+			std::string name(childobj->domain()->name());
+			addRefAndAnchor(childobj, childobj->design(), obj->design());
 		}
-		if (sz < 1 && sz2 < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
-		if (deleteRef) { deleteRefandAnchor(ref, geo); std::cout << rObj->domain()->name() << " has " << sz << "," << sz2 << " parents and is being removed" << std::endl; } //*/
-	} 
+	}
 }
 
 int main(int argc, char* argv[])
@@ -203,54 +155,37 @@ int main(int argc, char* argv[])
 	RoseObject *obj;
 	RoseCursor curse;
 	curse.traverse(PMI);
-	curse.domain(ROSE_DOMAIN(RoseObject));
-	ListOfRoseObject children;
+	curse.domain(ROSE_DOMAIN(RoseStructure));
 	while (obj = curse.next())
 	{
-		children.emptyYourself();
-		obj->findObjects(&children, 0, ROSE_TRUE);
-		for (int i = 0; i < children.size(); i++)
+		handleEntity(obj);
+	}
+	rose_compute_backptrs(PMI);
+	rose_compute_backptrs(geo);
+	curse.traverse(geo);
+	curse.domain(ROSE_DOMAIN(RoseObject));
+	ListOfRoseObject Parents;
+	while (obj = curse.next())
+	{	
+		Parents.emptyYourself();
+		obj->usedin(NULL, NULL, &Parents);
+		if (Parents.size() == 0)
 		{
-			auto child = children[i];
-			if (child->design() == geo && !rose_is_marked(child))
-			{
-				rose_mark_set(child);
-				std::string name(child->domain()->name());
-				if (name == "cartesian_point")
-				{
-					std::cout << "Child: " << child->entity_id() << std::endl;
-					std::cout << "Child used in:\n";
-					ListOfRoseObject parents;
-					std::cout << "\tobject: " << obj->design()->name() << " " << obj->domain()->name() << std::endl;
-					child->usedin(NULL, NULL, &parents);
-					for (int i = 0; i < parents.size(); i++) std::cout << "\tparent: " << parents[i]->design()->name() <<" " <<parents[i]->domain()->name() << std::endl;
-				}
-				addRefAndAnchor(child, geo, PMI);
-			}
+			addRefAndAnchor(obj, geo, PMI);
 		}
 	}
 	update_uri_forwarding(PMI);
 
-//Removes uneccesary References
-//	RoseCursor curser;
-//	curser.traverse(PMI->reference_section());
-//	curser.domain(ROSE_DOMAIN(RoseReference));
-//	RoseObject * obj;
-//	int count = 0;
-	//std::cout << "Curser size: " << curser.size() << std::endl;
-//	while (obj = curser.next()){
-//		removeExtraRefandAnchor(obj, geo);
-//	}
 	rose_mark_end();
 
 	ARMgc(PMI);
 	ARMgc(geo);
 	rose_empty_trash();
-	geo->save();
-	PMI->save();
-	
 
+	geo->save();
 	ARMsave(geo);
+
+	PMI->save();	
 	ARMsave(PMI);
 	
 	return 0;
