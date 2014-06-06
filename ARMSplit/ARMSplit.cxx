@@ -100,7 +100,7 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 
 	if (rObj->domain() == ROSE_DOMAIN(stp_product_definition) || rObj->domain() == ROSE_DOMAIN(stp_product_definition_shape)){
 		//print all info about these to test
-		//std::cout << 
+		//std::cout << ;
 		return;
 	}
 
@@ -114,7 +114,7 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 			sz = parents.size();
 			int counter = 0;
 			if (rru->user()->entity_id()) {
-				counter++; //std::cout << rru->user()->domain()->name() << rru->user()->entity_id() << std::endl;
+				counter++; 
 			}
 			while (rru = rru->next_for_ref()){
 				if (rru->user()){
@@ -122,10 +122,6 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 				}
 			}
 
-			if (sz == 0){ //rObj->domain() == ROSE_DOMAIN(stp_oriented_edge)){ 
-				std::cout << "type " << rObj->domain()->name() << "\n";
-				std::cout << "\thas " << counter << " parents in " << ref->design()->name() << std::endl;
-			}
 			if (counter == 0){ deleteRefandAnchor(ref, geo); }
 		}
 	}
@@ -138,13 +134,14 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 		//if rObj(object reffered to by reference) has a parent in PMI don't remove it
 		rObj->usedin(NULL, NULL, &parents);
 		sz = parents.size();
-		for (i = 0; i < sz; i++){
+		/*for (i = 0; i < sz; i++){
 			RoseObject * parent = parents.get(i);
 			if (parent->design() != geo){
 				deleteRef = false;
 				std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
 			}
-		}
+			//else { std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, may deleted" << std::endl; }
+		}*/
 
 		//if reference has at least 1 parent in PMI(not geo) keep it otherwise, remove it		
 		RoseDesign * PMI = ref->design();
@@ -157,12 +154,11 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 				deleteRef = false;
 				
 			}
-			else{ std::cout << "type " << rObj->domain()->name() << " has parent in: " << parent->design()->name() << "#" << parent->entity_id() << " of type " << parent->domain()->name() << "\t"; }		
+			//else{ std::cout << "type " << rObj->domain()->name() << " has parent in: " << parent->design()->name() << "#" << parent->entity_id() << " of type " << parent->domain()->name() << "\t"; }		
 		}
-		//sz2 = sz - count;
+
 		if (sz < 1 && (sz2 - count) < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
 		if (deleteRef) { deleteRefandAnchor(ref, geo); std::cout << " and has " << sz << "," << sz2 << ":" << count << " parents and is being removed" << std::endl; }
-		//else{ std::cout << rObj->domain()->name() << "\t"; }
 	} 
 }
 
