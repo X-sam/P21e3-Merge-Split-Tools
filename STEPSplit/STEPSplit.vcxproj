@@ -116,13 +116,13 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)\stix;$(ROSE_INCLUDE)\stpcad</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)\stix;$(ROSE_INCLUDE)\stpcad;$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpcad_arm</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ROSE)\lib\i86_win32_vc11_md</AdditionalLibraryDirectories>
-      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpcad_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
     </Link>
   </ItemDefinitionGroup>

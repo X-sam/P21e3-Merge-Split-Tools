@@ -10,7 +10,7 @@
 #include <iostream>
 #include <cstdio>
 #include "scan.h"
-
+#include <ARM.h>
 #include <ctype.h>
 #include <stix_asm.h>
 #include <stix_tmpobj.h>
@@ -740,23 +740,20 @@ std::string SafeName(std::string name){
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
 	ProdOutName.append(obj->domain()->name());
-	ProdOutName.append("_split_item#");
+	ProdOutName.append("_split_item");
 	ProdOutName.append(std::to_string(obj->entity_id()));
-	ProdOutName = SafeName(ProdOutName);
+	//ProdOutName = SafeName(ProdOutName);
 
 	ProdOut->addName(ProdOutName.c_str(), obj);
 
-	std::string refdir(dir.begin() + 3, dir.end());
-	std::string refURI = refdir + "/" + std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
+	std::string refdir(dir);
+	std::string refURI = (std::string(ProdOut->name()) + ".stp#" + ProdOutName);//uri for created reference to prod/obj
 
 	RoseReference *ref = rose_make_ref(master, refURI.c_str());
 	ref->resolved(obj);
 	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
-
-	//ProdOut->save();
-	//master->save();
 }
 
 //takes pointer to a RoseObject from Master and creates a
@@ -980,10 +977,14 @@ int split(RoseDesign * master, std::string dir){
 	unsigned int i,sz;
 
 	StpAsmProductDefVec roots;
-	stix_find_root_products (&roots, master); 
 	
 	rose_compute_backptrs(master);
+	stix_find_root_products (&roots, master); 
+	stix_tag_units(master);
 	stix_tag_asms(master);
+
+	ARMpopulate(master);
+
 	StixMgrProperty::tag_design(master);
 	StixMgrPropertyRep::tag_design(master);
 	
@@ -993,7 +994,6 @@ int split(RoseDesign * master, std::string dir){
 	
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		PutOutHelper(roots[i], dir);
-		///rose_empty_trash();
 	}
 	if (sz == 0) { return 1;}
 
@@ -1019,9 +1019,6 @@ int split(RoseDesign * master, std::string dir){
 
 	objs.traverse(master);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
-	while ((obj = objs.next()) != 0) {
-		//if (stix_split_is_export(obj)) rose_move_to_trash(obj);
-	}
 	
 	////////////////////////////|||\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 		
@@ -1057,8 +1054,11 @@ int main(int argc, char* argv[])
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
 	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
 	master->fileDirectory(dir.c_str());
-	//dir = "";
+
 	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
-	else{ return 1; }
+	else{ 
+		std::cout << "No assemblies in design" << std::endl;
+		return 1;
+	}
 	return 0;
 }
