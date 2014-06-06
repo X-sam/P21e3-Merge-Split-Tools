@@ -737,12 +737,43 @@ std::string SafeName(std::string name){
 	return name;
 }
 
+void moveGeometry(RoseDesign * source, RoseDesign * dest)
+{
+	ARMCursor cur; //arm cursor
+	ARMObject *a_obj;
+	cur.traverse(source);
+
+	Workpiece_IF  *workpiece = NULL;
+
+	ListOfRoseObject aimObjs;
+	rose_mark_begin();
+	//Creates all references that may be necessary
+	while ((a_obj = cur.next()))
+	{
+		workpiece = a_obj->castToWorkpiece_IF();
+		if (workpiece)
+		{
+			aimObjs.emptyYourself();
+			unsigned i, sz;
+			RoseObject * aimObj;
+			a_obj->getAIMObjects(&aimObjs);
+			ARMresolveReferences(&aimObjs);
+			for (i = 0, sz = aimObjs.size(); i < sz; i++)
+			{
+				aimObj = aimObjs[i];
+				//moves evyerthing
+				aimObj->move(dest, 0);
+			}
+		}
+	}
+}
+
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master fiel for putting refs into
 	std::string ProdOutName;
 	ProdOutName.append(obj->domain()->name());
 	ProdOutName.append("_split_item");
 	ProdOutName.append(std::to_string(obj->entity_id()));
-	//ProdOutName = SafeName(ProdOutName);
+	ProdOutName = SafeName(ProdOutName);
 
 	ProdOut->addName(ProdOutName.c_str(), obj);
 
@@ -778,7 +809,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	stp_product_definition_formation * prodf = prod->formation();
 	stp_product * p = prodf ? prodf->of_product() : 0;
 
-	//if (!p) return;	//No product so can't do things right?
+	if (!p) return;	//No product so can't do things right?
 //	std::string ProdOutName = std::string(p->name() + std::string("_split"));
 	std::string ProdOutName(p->name());
 	ProdOutName.append("_split_item" );
@@ -801,7 +832,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	prod->findObjects(adFaces, INT_MAX, ROSE_FALSE); 
 	for (unsigned int i = 0; i < adFaces->size(); i++){ //mark all children for orphan check
 		obj2 = adFaces->get(i);
-		std::cout << obj2->domain();
+		//std::cout << obj2->domain()->name() << ", ;
 		//stp_advanced_face * adface = ROSE_CAST(stp_advanced_face, obj2);
 		//std::cout << adface->name() << std::endl;
 		
@@ -904,7 +935,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	rose_move_to_trash(ProdOut);
 }
 
-int PutOutHelper(stp_product_definition * pd, std::string dir){
+int putOutHelper(stp_product_definition * pd, std::string dir){
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
 	stp_product_definition_formation * pdf = pd->formation();
@@ -915,7 +946,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
 		printf("IGNORING PD #%lu (%s) (assembly) %s\n",
-		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
+		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); 
 		dir.append("/");
 		dir.append(name);
 		std::string tmpdir = dir;
@@ -925,23 +956,23 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 			std::cout << dir << std::endl;
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
+			//PutOut(pd, dir); //creates file for assembly & its sub assemblies
 		}
 		else{ //make different dir
 			std::cout << dir << std::endl;
 			i = 2; tmpdir.pop_back(); tmpdir.append(std::to_string(i));
-			while (rose_dir_exists(tmpdir.c_str()) != 0){
+			while (rose_dir_exists(tmpdir.c_str()) != 0){ //make a new directory if one of the same name exists
 				i++;
 				tmpdir.pop_back(); tmpdir.append(std::to_string(i));
 			}
 			dir = tmpdir;
 			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
+			//PutOut(pd, dir); //create file for sub assembly
 		}
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
-			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
+			putOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
 		}
 	}
 	else {
@@ -967,7 +998,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 }
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
-int split(RoseDesign * master, std::string dir){
+int Split(RoseDesign * master, std::string dir){
 	//traverse to find obj that match type
 	//RoseCursor cursor;
 	//RoseObject * obj;
@@ -979,8 +1010,8 @@ int split(RoseDesign * master, std::string dir){
 	StpAsmProductDefVec roots;
 	
 	rose_compute_backptrs(master);
-	stix_find_root_products (&roots, master); 
 	stix_tag_units(master);
+	stix_find_root_products (&roots, master); 
 	stix_tag_asms(master);
 
 	ARMpopulate(master);
@@ -993,7 +1024,7 @@ int split(RoseDesign * master, std::string dir){
 	rose_mark_begin();
 	
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		PutOutHelper(roots[i], dir);
+		putOutHelper(roots[i], dir);
 	}
 	if (sz == 0) { return 1;}
 
@@ -1055,7 +1086,7 @@ int main(int argc, char* argv[])
 	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
 	master->fileDirectory(dir.c_str());
 
-	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
+	if (Split(master,dir) == 0) { std::cout << "Success!\n"; }
 	else{ 
 		std::cout << "No assemblies in design" << std::endl;
 		return 1;
