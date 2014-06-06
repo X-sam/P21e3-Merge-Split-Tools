@@ -98,14 +98,14 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 	std::string anchor = URI.substr(poundpos + 1);
 	RoseObject *rObj = geo->findObject(anchor.c_str());
 
-	if (!rose_is_marked(rObj)){ //resolve references to objects that are not marked
+	if (!rose_is_marked(rObj)){ //delete references with no useage, or a useage that only contains itself
 		if (!rru){
 			deleteRefandAnchor(ref, geo);
 		}
 		else{
 			//count reference usages
 			int counter = 0;
-			if (rru->user()->entity_id()) {
+			if (rru->user()->entity_id()) { //if first usage isn't the reference
 				counter++; 
 			}
 			while (rru = rru->next_for_ref()){
@@ -114,27 +114,14 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 				}
 			}
 
-			//if not used, delete reference
+
+			//if not used by anything other than itself, delete reference
 			if (counter == 0){ deleteRefandAnchor(ref, geo); }
 		}
 	}
 	else{
-		
 		ListOfRoseObject parents;
-	
-		//std::cout << rObj->domain()->name() << " - " << parents.size() << std::endl;
 		bool deleteRef = true;
-		//if rObj(object reffered to by reference) has a parent in PMI don't remove it
-		rObj->usedin(NULL, NULL, &parents);
-		sz = parents.size();
-		/*for (i = 0; i < sz; i++){
-			RoseObject * parent = parents.get(i);
-			if (parent->design() != geo){
-				deleteRef = false;
-				std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, NOT deleted" << std::endl;
-			}
-			//else { std::cout << "Object " << rObj->domain()->name() << " has parent " << parent->design()->name() << " in PMI, may deleted" << std::endl; }
-		}*/
 
 		//if reference has at least 1 parent in PMI(not geo) keep it otherwise, remove it		
 		RoseDesign * PMI = ref->design();
@@ -160,8 +147,8 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 			}	
 		}
 		if (counter){ deleteRef = false; }
-		std::cout << counter << ", " << sz2 << ", " << sz << ", " << rObj->domain()->name() << std::endl;
-		if (sz < 1 && (sz2 - count) < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
+		//std::cout << counter << ", " << sz2 << ", " << rObj->domain()->name() << std::endl;
+		if ( (sz2 - count) < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
 		if (deleteRef) { deleteRefandAnchor(ref, geo); }//std::cout << " and has " << sz << "," << sz2 << ":" << count << " parents and is being removed" << std::endl; }
 	} 
 }
@@ -226,7 +213,7 @@ int main(int argc, char* argv[])
 				
 				ListOfRoseObject parents;
 				aimObj->usedin(NULL, NULL, &parents);
-				if (parents.size() < 1){ rose_mark_set(aimObj); }//std::cout << "marked " << aimObj->domain()->name() << " size: " << parents.size() << std::endl;}
+				if (parents.size() < 1){ rose_mark_set(aimObj); }//mark aim obj with no parents
 				
 			}		
 		}
