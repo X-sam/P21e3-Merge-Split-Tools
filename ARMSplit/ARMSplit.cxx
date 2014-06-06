@@ -26,7 +26,7 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	ProdOut->addName(ProdOutName.c_str(), obj);
 
 	std::string refdir(dir);
-	std::string refURI = (std::string("geo.stp#") + ProdOutName);//uri for created reference to prod/obj
+	std::string refURI = (std::string(ProdOut->name()) + ".stp#" + ProdOutName);//uri for created reference to prod/obj
 
 	RoseReference *ref = rose_make_ref(master, refURI.c_str());
 	ref->resolved(obj);
