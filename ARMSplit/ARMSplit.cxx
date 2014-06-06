@@ -98,20 +98,12 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 	std::string anchor = URI.substr(poundpos + 1);
 	RoseObject *rObj = geo->findObject(anchor.c_str());
 
-	if (rObj->domain() == ROSE_DOMAIN(stp_product_definition) || rObj->domain() == ROSE_DOMAIN(stp_product_definition_shape)){
-		//print all info about these to test
-		//std::cout << ;
-		return;
-	}
-
-	if (!rose_is_marked(rObj)){
+	if (!rose_is_marked(rObj)){ //resolve references to objects that are not marked
 		if (!rru){
 			deleteRefandAnchor(ref, geo);
 		}
 		else{
-			ListOfRoseObject parents;
-			ref->usedin(NULL, NULL, &parents);
-			sz = parents.size();
+			//count reference usages
 			int counter = 0;
 			if (rru->user()->entity_id()) {
 				counter++; 
@@ -122,13 +114,14 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 				}
 			}
 
+			//if not used, delete reference
 			if (counter == 0){ deleteRefandAnchor(ref, geo); }
 		}
 	}
 	else{
 		
 		ListOfRoseObject parents;
-		
+	
 		//std::cout << rObj->domain()->name() << " - " << parents.size() << std::endl;
 		bool deleteRef = true;
 		//if rObj(object reffered to by reference) has a parent in PMI don't remove it
@@ -154,11 +147,22 @@ void removeExtraRefandAnchor(RoseObject * obj, RoseDesign * geo){
 				deleteRef = false;
 				
 			}
-			//else{ std::cout << "type " << rObj->domain()->name() << " has parent in: " << parent->design()->name() << "#" << parent->entity_id() << " of type " << parent->domain()->name() << "\t"; }		
 		}
-
+		int counter = 0;
+		if (rru){
+			if (rru->user()->entity_id()) {
+				counter++;
+			}
+			while (rru = rru->next_for_ref()){
+				if (rru->user()){
+					counter++;
+				}
+			}	
+		}
+		if (counter){ deleteRef = false; }
+		std::cout << counter << ", " << sz2 << ", " << sz << ", " << rObj->domain()->name() << std::endl;
 		if (sz < 1 && (sz2 - count) < 1) { deleteRef = false; } //std::cout << rObj->domain()->name() << " has " << sz << " parents and is NOT being removed" << std::endl; }
-		if (deleteRef) { deleteRefandAnchor(ref, geo); std::cout << " and has " << sz << "," << sz2 << ":" << count << " parents and is being removed" << std::endl; }
+		if (deleteRef) { deleteRefandAnchor(ref, geo); }//std::cout << " and has " << sz << "," << sz2 << ":" << count << " parents and is being removed" << std::endl; }
 	} 
 }
 
