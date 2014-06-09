@@ -37,7 +37,6 @@
   <ItemGroup>
     <ClCompile Include="ARMtreeSplit.cpp" />
     <ClCompile Include="scan.cxx" />
-    <ClCompile Include="STEPSplit.cxx" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="scan.h" />

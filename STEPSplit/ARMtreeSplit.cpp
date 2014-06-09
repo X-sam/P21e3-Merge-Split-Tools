@@ -67,21 +67,48 @@ std::string SafeName(std::string name){
 	return name;
 }
 
-void moveGeometry(RoseObject * root, RoseDesign * dst){
-	ListOfRoseObject assemObjs;
-	assemObjs.putObject(root);
-	rose_mark_begin();
+void moveGeometry(ListOfRoseObject * pieces, RoseDesign * dst){
 
+	
+	
 	unsigned i, sz;
 	RoseObject * assemObj;
-	ARMresolveReferences(&assemObjs);
-	std::cout << "\t" << assemObjs.size() << std::endl;
-	for (i = 0, sz = assemObjs.size(); i < sz; i++)
+	std::cout << "\t" << pieces->size() << std::endl;
+	ARMresolveReferences(pieces);
+	std::cout << "\t" << pieces->size() << std::endl;
+	for (i = 0, sz = pieces->size(); i < sz; i++)
 	{
-		assemObj = assemObjs[i];
+		assemObj = pieces->get(i);
 		//moves evyerthing
+		rose_mark_set(assemObj);
 		assemObj->move(dst, 0);
 	}
+
+}
+
+int DesFromWkpc(ARMObject * wkpc, std::string dir){
+	stp_product_definition * root = ROSE_CAST(stp_product_definition ,wkpc->getRootObject());
+	RoseDesign * src = root->design();
+	stp_product * p = root->formation() ? root->formation()->of_product() : 0;
+	std::string dstName(p->name());
+	dstName.append("_split" + std::to_string(p->entity_id()));
+	dstName = SafeName(dstName);
+
+	RoseDesign * dst = pnew RoseDesign(dstName.c_str());
+	dst->fileDirectory(dir.c_str());
+	ListOfRoseObject * pieces = pnew ListOfRoseObject;
+	wkpc->getAIMObjects(pieces);
+	moveGeometry(pieces, dst);
+
+	dst->save();
+	for (unsigned i = 0, sz = pieces->size(); i < sz; i++)
+	{
+		RoseObject * assemObj = pieces->get(i);
+		assemObj->move(src, 0);
+	}
+	
+	rose_move_to_trash(pieces);
+	return 0;
 }
 
 int makeDesFromProd(stp_product_definition * root, std::string dir){
@@ -95,7 +122,7 @@ int makeDesFromProd(stp_product_definition * root, std::string dir){
 
 	RoseDesign * dst = pnew RoseDesign(dstName.c_str() );
 	dst->fileDirectory(dir.c_str());
-	moveGeometry(root, dst);
+	//moveGeometry(root, dst);
 
 	dst->save();
 	return 0;
@@ -159,6 +186,32 @@ int split(RoseDesign * master, std::string dir){
 
 	stix_tag_units(master); //initilize arm stuff
 	ARMpopulate(master);
+	rose_mark_begin();
+
+	ARMCursor cur; //arm cursor
+	ARMObject *a_obj;
+	cur.traverse(master);
+	cur.domain(Workpiece::type());
+	int count = 0;
+	while ((a_obj = cur.next()))
+	{
+		std::cout << a_obj->getModuleName() << std::endl;
+		ListOfRoseObject * all_obj = pnew ListOfRoseObject; 
+		a_obj->getAIMObjects(all_obj);
+		//ARMCastToWorkpiece(a_obj);
+		//DesFromWkpc(a_obj, dir);
+		std::cout << a_obj->getRootObject()->domain()->name() << std::endl;
+		for (i = 0, sz = all_obj->size(); i < sz; i++){
+			std::cout << "\t" << all_obj->get(i)->domain()->name() << std::endl;
+			if (all_obj->get(i)->domain() == ROSE_DOMAIN(stp_product_definition)){
+				count++;
+			}
+		}
+//		rose_move_to_trash(all_obj);
+		
+	}
+	std::cout << count << std::endl;
+
 
 	rose_compute_backptrs(master);
 	stix_tag_asms(master);
@@ -169,7 +222,7 @@ int split(RoseDesign * master, std::string dir){
 
 	rose_mark_begin();
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		createFoldersandFiles(roots[i], dir);
+		//createFoldersandFiles(roots[i], dir);
 	}
 	if (sz == 0) { std::cout << "No assmblies" << std::endl; return 1; }
 	return 0;
