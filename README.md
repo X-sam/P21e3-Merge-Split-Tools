@@ -6,4 +6,4 @@ STEPMerge- Given a step file with references, finds all matching anchors and mer
 
 STEPSplit- Given a step file with assemblies, splits into proposed ZIP assembly form. Work In Progress.
 
-ARMSplit- Given a step file, uses ARM to split the workpieces into separate files.
+PMISplit- Given a step file, uses ARM to split the workpieces into a separate file. This effectively puts all the geometry in one file and everything else in another.
