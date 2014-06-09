@@ -30,6 +30,7 @@ int main(int argc, char* argv[])
 	if (argc < 3)
 	{
 		std::cout << "Usage: " << argv[0] << " [Input.stp] [OutputMasterFile.stp]\n";
+		return EXIT_FAILURE;
 	}
 
 	FILE *out;
