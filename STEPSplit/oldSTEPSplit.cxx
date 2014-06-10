@@ -931,32 +931,13 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	if (pm->child_nauos.size()) {
 		printf("IGNORING PD #%lu (%s) (assembly) %s\n",
 		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
-
+		dir.push_back('/');
 		dir.append(SafeName(name));
-		std::string tmpdir = dir;
-		tmpdir.append("1");
 		int i = 1;
 		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
-		dir.append("/" + std::to_string(i));
+		dir.append(std::to_string(i));
 		rose_mkdir(dir.c_str());
-		
-		if (!rose_dir_exists(tmpdir.c_str())){
-			//std::cout << dir << std::endl;
-			dir = tmpdir;
-			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
-		}
-		else{ //make different dir
-			//std::cout << dir << std::endl;
-			i = 2; tmpdir.pop_back(); tmpdir.append(std::to_string(i));
-			while (rose_dir_exists(tmpdir.c_str()) != 0){
-				i++;
-				tmpdir.pop_back(); tmpdir.append(std::to_string(i));
-			}
-			dir = tmpdir;
-			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
-		}
+
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
