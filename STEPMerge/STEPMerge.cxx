@@ -44,7 +44,7 @@ int PutItem(RoseObject *obj, RoseDesign* output)
 //	1 on References Blacklisted File
 //	2 on Doesn't Reference Whitelisted File
 // -2 on Download Failure
-int AddItem(RoseReference *ref, RoseDesign* output)
+int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 {
 	std::string URI(ref->uri());
 	//URI looks like "filename.stp#item1234"
@@ -108,6 +108,8 @@ int AddItem(RoseReference *ref, RoseDesign* output)
 		}
 		if (!found) return 2;	//Whitelisted file result
 	}
+	reffile = workingdir + reffile;
+	std::cout << reffile << " " <<anchor << std::endl;
 	RoseDesign * child = ROSE.findDesignInWorkspace(reffile.c_str());	//check if file is in memory.
 	if(child == NULL) child = ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
 	if (!child) return -1;	//file doesn't work for some reason.
@@ -211,6 +213,8 @@ int main(int argc, char* argv[])
 		std::cerr << "Error opening input file" << std::endl;
 		return EXIT_FAILURE;
 	}
+	std::string workingdir = master->fileDirectory();
+	if(!outfilename.find_first_of('/')) outfilename = "./" + outfilename;
 	master->saveAs(outfilename.data());
 	RoseDesign * design = ROSE.useDesign(outfilename.data());
 	if (!design)
@@ -231,7 +235,7 @@ int main(int argc, char* argv[])
 		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
 		//Pass the reference to AddItem, which will open the associated file 
 		//& handle adding the referenced item & its children to the new file.
-		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design);
+		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design,workingdir);
 		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
 		{
 			std::cerr << "Error parsing reference\n";
