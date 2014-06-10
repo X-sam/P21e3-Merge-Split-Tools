@@ -747,16 +747,18 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
+	if (obj->entity_id() == 0){
+		//std::cout << anchor << " " << obj->domain()->typeIsSelect() << std::endl;
+		return;
+	}
 	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
 
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
-	std::string reference(SafeName(dir) + "/");	//let's make the reference text. start with the output directory 
+	std::string reference(SafeName(dir) + "\\");	//let's make the reference text. start with the output directory 
 	int slashpos = reference.find("\\");
 	if (slashpos > 0 && slashpos < reference.size()){ 
-		//std::cout << reference << " --> ";
 		reference = reference.substr(slashpos+1); 
-		//std::cout << reference << std::endl;
 	}
 	reference.append(ProdOut->name());	//Add the file name.
 	reference.append(".stp#" + anchor); //Finally add the file type, a pound, and the anchor. It'll look like "folder/file.stp#advanced_face_split_item123"
@@ -848,7 +850,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	{
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
-		//std::cout<< obj->domain()->name() << "\n";
+		std::cout<< obj->domain()->typeIsSelect() << "\n";
 		if (Parents.size() == 0)
 		{
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
