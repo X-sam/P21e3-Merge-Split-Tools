@@ -35,7 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ARMtreeSplit.cpp" />
+    <ClCompile Include="oldSTEPSplit.cxx" />
     <ClCompile Include="scan.cxx" />
   </ItemGroup>
   <ItemGroup>
