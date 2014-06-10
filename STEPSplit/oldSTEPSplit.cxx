@@ -846,7 +846,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	}
 }
 
-//takes pointer to a RoseObject from Master and creates a
+//takes pointer to a RoseObject from Master and creates a complete sub file
 void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
 
 	if (!prod) return; 
