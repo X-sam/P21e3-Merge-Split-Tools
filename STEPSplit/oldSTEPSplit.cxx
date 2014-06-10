@@ -662,24 +662,11 @@ void tag_shape_annotation(
 //##################################################################
 
 std::string SafeName(std::string name){
-	int spacepos = name.find(' ');	//Finds first space in filename, if any.
-	while (spacepos != std::string::npos)
+	for (auto &c : name)
 	{
-		name[spacepos] = '_';	//Replaces space with underscore, for filesystem safety.
-		spacepos = name.find(' ', spacepos + 1);
+		if (isspace(c) || c < 32 || c == '<' || c == '>' || c == ':' || c == '\"' || c == '\\' || c == '/' || c == '|' || c == '?' || c == '*')
+			c = '_';
 	}
-	int c = 0; int sz = name.length();
-	while (c < sz){
-		if (name[c] == '?') { name[c] = '_'; }
-		//if (name[c] == '/') { name[c] = '_'; }
-		//if (name[c] == '\\') { name[c] = '_'; }
-		if (name[c] == ':') { name[c] = '_'; }
-		if (name[c] == '"') { name[c] = '_'; }
-		if (name[c] == '\'') { name[c] = '_'; }
-		if (name[c] == '-') { name[c] = '_'; }
-		c++;
-	}
-
 	return name;
 }
 
@@ -751,7 +738,7 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
-	std::string reference(SafeName(dir) + "/");	//let's make the reference text. start with the output directory 
+	std::string reference(dir + '\\');	//let's make the reference text. start with the output directory 
 	int slashpos = reference.find("\\");
 	if (slashpos > 0 && slashpos < reference.size()){ 
 		//std::cout << reference << " --> ";
@@ -856,7 +843,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	}
 }
 
-//takes pointer to a RoseObject from Master and creates a
+//takes pointer to a RoseObject from Master and creates a complete sub file
 void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
 
 	if (!prod) return; 
@@ -884,13 +871,10 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	ProdOutName.append( std::to_string(p->entity_id())  );
 	ProdOutName = SafeName(ProdOutName);
 	RoseDesign * ProdOut = pnew RoseDesign(ProdOutName.c_str());
-	//ListOfRoseObject refParents; depricated
 
 	prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->fileDirectory(dir.c_str());
-	//copy_header (ProdOut, obj->design());
-    //copy_schema (ProdOut, obj->design());
-	//markChildren(obj); //marks children and removes them from master if obj is the only parent
+
 	ProdOut->save(); //save ProdOut as prod->id().stp	*/
 
 	RoseObject * obj2;
@@ -899,7 +883,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
 	cursor.domain(ROSE_DOMAIN(stp_product_definition));
-	//std::cout << cursor.size() << std::endl;
+
 	if (cursor.size() > 1){
 		stp_product_definition * tmp_pd; 		stp_product_definition_formation * tmp_pdf;		stp_product * tmp_p;		std::string forComp;
 		while (obj2 = cursor.next())	{
@@ -920,20 +904,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		prod = ROSE_CAST(stp_product_definition, cursor.next());
 		prodf = prod->formation();
 		p = prodf ? prodf->of_product() : 0;
-	} //*/
-	///printf("\t%d\n", prod->entity_id());
-	/*ProdOut->addName(ProdOutName.c_str(), prod); //add anchor to ProdOut
-
-	std::string refURI = dir + "/" + std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
-	//make reference to prodout file from master
-	RoseReference *ref = rose_make_ref(src, refURI.c_str());
-	ref->resolved(obj);
-	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
-	URIManager = MyURIManager::make(obj);
-
-	URIManager->should_go_to_uri(ref);
-	*/
-
+	} 
 	ProdOut->save();
 
 	tag_subassembly(old_prod);
@@ -997,26 +968,10 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
 		dir.append("\\");
 		dir.append(SafeName(name));
-		std::string tmpdir = dir;
-		tmpdir.append("1");
+		int i = 1;
+		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
+		rose_mkdir((dir + std::to_string(i)).c_str());
 		
-		if (!rose_dir_exists(tmpdir.c_str())){
-			//std::cout << dir << std::endl;
-			dir = tmpdir;
-			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
-		}
-		else{ //make different dir
-			//std::cout << dir << std::endl;
-			i = 2; tmpdir.pop_back(); tmpdir.append(std::to_string(i));
-			while (rose_dir_exists(tmpdir.c_str()) != 0){
-				i++;
-				tmpdir.pop_back(); tmpdir.append(std::to_string(i));
-			}
-			dir = tmpdir;
-			rose_mkdir(dir.c_str());
-			//PutOut(pd, dir);
-		}
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
