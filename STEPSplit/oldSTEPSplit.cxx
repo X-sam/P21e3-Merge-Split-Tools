@@ -970,7 +970,8 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 		dir.append(SafeName(name));
 		int i = 1;
 		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
-		rose_mkdir((dir + std::to_string(i)).c_str());
+		dir.append(std::to_string(i));
+		rose_mkdir(dir.c_str());
 		
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
