@@ -661,25 +661,13 @@ void tag_shape_annotation(
 
 //##################################################################
 
-std::string SafeName(std::string name){
-	int spacepos = name.find(' ');	//Finds first space in filename, if any.
-	while (spacepos != std::string::npos)
-	{
-		name[spacepos] = '_';	//Replaces space with underscore, for filesystem safety.
-		spacepos = name.find(' ', spacepos + 1);
-	}
-	int c = 0; int sz = name.length();
-	while (c < sz){
-		if (name[c] == '?') { name[c] = '_'; }
-		//if (name[c] == '/') { name[c] = '_'; }
-		//if (name[c] == '\\') { name[c] = '_'; }
-		if (name[c] == ':') { name[c] = '_'; }
-		if (name[c] == '"') { name[c] = '_'; }
-		if (name[c] == '\'') { name[c] = '_'; }
-		if (name[c] == '-') { name[c] = '_'; }
-		c++;
-	}
 
+std::string SafeName(std::string name){
+	for (auto &c : name)
+	{
+		if (isspace(c) || c < 32 || c == '<' || c == '>' || c == ':' || c == '\"' || c == '\\' || c == '/' || c == '|' || c == '?' || c == '*')
+			c = '_';
+	}
 	return name;
 }
 
@@ -997,7 +985,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	if (pm->child_nauos.size()) {
 		printf("IGNORING PD #%lu (%s) (assembly) %s\n",
 		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
-		dir.append("\\");
+		dir.append("/");
 		dir.append(SafeName(name));
 		std::string tmpdir = dir;
 		tmpdir.append("1");
@@ -1067,7 +1055,7 @@ int split(RoseDesign * master, std::string dir){
 	
 
 	StixMgrSplitStatus::export_only_needed = 1;
-	printf ("\nPRODUCT TREE ====================\n");
+	//printf ("\nPRODUCT TREE ====================\n");
 	//rose_mark_begin();
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		PutOutHelper(roots[i], dir);
@@ -1109,7 +1097,7 @@ int main(int argc, char* argv[])
 	rose_mkdir(dir.c_str());
 	origional->fileDirectory(dir.c_str());
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
-	RoseDesign * master = ROSE.useDesign((dir + "\\" +"SplitOutput.stp").c_str());
+	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
 	master->fileDirectory(dir.c_str());
 	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
 	return 0;
