@@ -1,5 +1,5 @@
-//Chris Made this code.
-//6/2/14
+//Chris & Samson made this code.
+//6/13/14
 
 #include <rose.h>
 #include <rose_p28.h>
