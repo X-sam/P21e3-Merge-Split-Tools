@@ -671,46 +671,6 @@ std::string SafeName(std::string name){
 	return name;
 }
 
-//if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
-bool isOrphan(RoseObject * child, ListOfRoseObject * children){
-	ListOfRoseObject * parents = pnew ListOfRoseObject;
-	unsigned int k, sz;
-	child->usedin(NULL, NULL, parents); //finds parents
-	sz = parents ? parents->size(): 0;
-	for (k = 0; k < sz; k++){
-		RoseObject * parent = parents->get(k);
-		if (!rose_is_marked(parent)){ //if parent is not marked then it is not a child of the object being split and needs to stay
-			//rose_mark_clear(child); //unmarks child to hopefully improve preformance on large operations
-			return false;
-		}
-	}
-	rose_move_to_trash(parents);
-	return true;
-}
-
-void markChildren(RoseObject * head){
-	ListOfRoseObject *children = new ListOfRoseObject;
-	//old_prod->findObjects(children, INT_MAX, ROSE_FALSE);	breaks children
-	head->findObjects(children, INT_MAX, ROSE_FALSE); //children will be filled with obj and all of its children
-	//rose_mark_set(obj);
-	for (unsigned int i = 0; i < children->size(); i++){ //mark all children for orphan check
-		RoseObject *child = children->get(i);
-		if (rose_is_marked(child)){ continue; }
-		else{ rose_mark_set(child); }
-	}
-
-	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
-		RoseObject *child = children->get(i);
-		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
-			//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
-			std::cout << child->domain()->name() << " moved to trash" << std::endl; //
-			rose_move_to_trash(child);
-		}
-		else{ continue; } //make reference to new object that replaces old one in master
-	}
-
-}
-
 //Find which attribute of attributer attributee is and return it.
 RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 {
@@ -880,7 +840,6 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	ProdOut->fileDirectory(dir.c_str());
 	//copy_header (ProdOut, obj->design());
     //copy_schema (ProdOut, obj->design());
-	//markChildren(obj); //marks children and removes them from master if obj is the only parent
 	ProdOut->save(); //save ProdOut as prod->id().stp	*/
 
 	RoseObject * obj2;
