@@ -843,7 +843,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	//rose_compute_backptrs(source);
 	//rose_compute_backptrs(destination);//Update the backpointers to prevent usedin from having errors.
 	curse.traverse(destination);
-	curse.domain(ROSE_DOMAIN(RoseObject));	//Check everything in the destination file.
+	curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
 	//std::cout << curse.size() << "\n";
 	ListOfRoseObject Parents;
 	while (obj = curse.next())
