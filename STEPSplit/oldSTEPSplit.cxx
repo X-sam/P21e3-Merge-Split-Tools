@@ -661,6 +661,7 @@ void tag_shape_annotation(
 
 //##################################################################
 
+
 std::string SafeName(std::string name){
 	for (auto &c : name)
 	{
@@ -668,46 +669,6 @@ std::string SafeName(std::string name){
 			c = '_';
 	}
 	return name;
-}
-
-//if child has at least one parent outside of children returns false, if no parents outside of children it reutrns true
-bool isOrphan(RoseObject * child, ListOfRoseObject * children){
-	ListOfRoseObject * parents = pnew ListOfRoseObject;
-	unsigned int k, sz;
-	child->usedin(NULL, NULL, parents); //finds parents
-	sz = parents ? parents->size(): 0;
-	for (k = 0; k < sz; k++){
-		RoseObject * parent = parents->get(k);
-		if (!rose_is_marked(parent)){ //if parent is not marked then it is not a child of the object being split and needs to stay
-			//rose_mark_clear(child); //unmarks child to hopefully improve preformance on large operations
-			return false;
-		}
-	}
-	rose_move_to_trash(parents);
-	return true;
-}
-
-void markChildren(RoseObject * head){
-	ListOfRoseObject *children = new ListOfRoseObject;
-	//old_prod->findObjects(children, INT_MAX, ROSE_FALSE);	breaks children
-	head->findObjects(children, INT_MAX, ROSE_FALSE); //children will be filled with obj and all of its children
-	//rose_mark_set(obj);
-	for (unsigned int i = 0; i < children->size(); i++){ //mark all children for orphan check
-		RoseObject *child = children->get(i);
-		if (rose_is_marked(child)){ continue; }
-		else{ rose_mark_set(child); }
-	}
-
-	for (unsigned int i = 0; i < children->size(); i++)	{  //scan children to find parents, if orphan delete from master
-		RoseObject *child = children->get(i);
-		if (isOrphan(child, children)){ //if: child dose not have parents outside of children 
-			//std::cout << "Moving " << child->entity_id() <<":" << child->className() << " to trash\n";
-			std::cout << child->domain()->name() << " moved to trash" << std::endl; //
-			rose_move_to_trash(child);
-		}
-		else{ continue; } //make reference to new object that replaces old one in master
-	}
-
 }
 
 //Find which attribute of attributer attributee is and return it.
@@ -734,16 +695,18 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
+	if (obj->entity_id() == 0){
+		//std::cout << anchor << " " << obj->domain()->typeIsSelect() << std::endl;
+		return;
+	}
 	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
 
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
-	std::string reference(dir + '\\');	//let's make the reference text. start with the output directory 
-	int slashpos = reference.find("\\");
+	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
+	int slashpos = reference.find("/");
 	if (slashpos > 0 && slashpos < reference.size()){ 
-		//std::cout << reference << " --> ";
 		reference = reference.substr(slashpos+1); 
-		//std::cout << reference << std::endl;
 	}
 	reference.append(ProdOut->name());	//Add the file name.
 	reference.append(".stp#" + anchor); //Finally add the file type, a pound, and the anchor. It'll look like "folder/file.stp#advanced_face_split_item123"
@@ -835,7 +798,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	{
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
-		//std::cout<< obj->domain()->name() << "\n";
+		//std::cout<< obj->domain()->typeIsSelect() << "\n";
 		if (Parents.size() == 0)
 		{
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
@@ -874,7 +837,8 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 
 	prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->fileDirectory(dir.c_str());
-
+	//copy_header (ProdOut, obj->design());
+    //copy_schema (ProdOut, obj->design());
 	ProdOut->save(); //save ProdOut as prod->id().stp	*/
 
 	RoseObject * obj2;
@@ -883,6 +847,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
 	cursor.domain(ROSE_DOMAIN(stp_product_definition));
+	//std::cout << cursor.size() << std::endl;
 
 	if (cursor.size() > 1){
 		stp_product_definition * tmp_pd; 		stp_product_definition_formation * tmp_pdf;		stp_product * tmp_p;		std::string forComp;
@@ -966,13 +931,32 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	if (pm->child_nauos.size()) {
 		printf("IGNORING PD #%lu (%s) (assembly) %s\n",
 		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
-		dir.append("\\");
+
 		dir.append(SafeName(name));
+		std::string tmpdir = dir;
+		tmpdir.append("1");
 		int i = 1;
 		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
 		dir.append(std::to_string(i));
 		rose_mkdir(dir.c_str());
 		
+		if (!rose_dir_exists(tmpdir.c_str())){
+			//std::cout << dir << std::endl;
+			dir = tmpdir;
+			rose_mkdir(dir.c_str());
+			//PutOut(pd, dir);
+		}
+		else{ //make different dir
+			//std::cout << dir << std::endl;
+			i = 2; tmpdir.pop_back(); tmpdir.append(std::to_string(i));
+			while (rose_dir_exists(tmpdir.c_str()) != 0){
+				i++;
+				tmpdir.pop_back(); tmpdir.append(std::to_string(i));
+			}
+			dir = tmpdir;
+			rose_mkdir(dir.c_str());
+			//PutOut(pd, dir);
+		}
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
@@ -1021,7 +1005,7 @@ int split(RoseDesign * master, std::string dir){
 	
 
 	StixMgrSplitStatus::export_only_needed = 1;
-	printf ("\nPRODUCT TREE ====================\n");
+	//printf ("\nPRODUCT TREE ====================\n");
 	//rose_mark_begin();
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		PutOutHelper(roots[i], dir);
@@ -1063,7 +1047,7 @@ int main(int argc, char* argv[])
 	rose_mkdir(dir.c_str());
 	origional->fileDirectory(dir.c_str());
 	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
-	RoseDesign * master = ROSE.useDesign((dir + "\\" +"SplitOutput.stp").c_str());
+	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
 	master->fileDirectory(dir.c_str());
 	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
 	return 0;
