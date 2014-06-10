@@ -937,7 +937,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 		tmpdir.append("1");
 		int i = 1;
 		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
-		dir.append(std::to_string(i));
+		dir.append("/" + std::to_string(i));
 		rose_mkdir(dir.c_str());
 		
 		if (!rose_dir_exists(tmpdir.c_str())){
