@@ -743,8 +743,8 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
-	std::string reference(SafeName(dir) + "\\");	//let's make the reference text. start with the output directory 
-	int slashpos = reference.find("\\");
+	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
+	int slashpos = reference.find("/");
 	if (slashpos > 0 && slashpos < reference.size()){ 
 		reference = reference.substr(slashpos+1); 
 	}
@@ -838,7 +838,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	{
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
-		std::cout<< obj->domain()->typeIsSelect() << "\n";
+		//std::cout<< obj->domain()->typeIsSelect() << "\n";
 		if (Parents.size() == 0)
 		{
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
@@ -910,20 +910,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		prod = ROSE_CAST(stp_product_definition, cursor.next());
 		prodf = prod->formation();
 		p = prodf ? prodf->of_product() : 0;
-	} //*/
-	///printf("\t%d\n", prod->entity_id());
-	/*ProdOut->addName(ProdOutName.c_str(), prod); //add anchor to ProdOut
-
-	std::string refURI = dir + "/" + std::string(ProdOutName + std::string(".stp#") + ProdOutName);//uri for created reference to prod/obj
-	//make reference to prodout file from master
-	RoseReference *ref = rose_make_ref(src, refURI.c_str());
-	ref->resolved(obj);
-	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
-	URIManager = MyURIManager::make(obj);
-
-	URIManager->should_go_to_uri(ref);
-	*/
-
+	} 
 	ProdOut->save();
 
 	tag_subassembly(old_prod);
