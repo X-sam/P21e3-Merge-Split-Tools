@@ -10,7 +10,7 @@
 #include <iostream>
 #include <cstdio>
 #include "scan.h"
-
+#include <ARM.h>
 #include <ctype.h>
 #include <stix_asm.h>
 #include <stix_tmpobj.h>
@@ -890,9 +890,9 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		}
 	}
 
-	objs.traverse(src);
-	objs.domain(ROSE_DOMAIN(RoseUnion));
-	while ((obj2 = objs.next()) != 0) { obj2->move(ProdOut); }
+	//objs.traverse(src);
+	//objs.domain(ROSE_DOMAIN(RoseUnion));
+	//while ((obj2 = objs.next()) != 0) { obj2->move(ProdOut); }
 	ProdOut->save();
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 	ProdOut->save();
@@ -1031,5 +1031,6 @@ int main(int argc, char* argv[])
 	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
 	master->fileDirectory(dir.c_str());
 	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
+	
 	return 0;
 }
