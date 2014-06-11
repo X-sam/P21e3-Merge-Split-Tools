@@ -695,10 +695,7 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
-	if (obj->entity_id() == 0){
-		std::cout << anchor << " " << obj->domain()->typeIsSelect() << std::endl;
-		//return;
-	}
+	if (obj->entity_id() == 0){	std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
 	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
 
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
@@ -828,20 +825,19 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	stix_split_clear_needed_and_ignore_trimmed(src);
 
 	if (!p) return;	//No product so can't do things right?
-//	std::string ProdOutName = std::string(p->name() + std::string("_split"));
 	std::string ProdOutName(p->name());
 	ProdOutName.append("_split_item" );
 	ProdOutName.append( std::to_string(p->entity_id())  );
 	ProdOutName = SafeName(ProdOutName);
 	RoseDesign * ProdOut = pnew RoseDesign(ProdOutName.c_str());
 
-	prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
+	//prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->fileDirectory(dir.c_str());
 	//copy_header (ProdOut, obj->design());
     //copy_schema (ProdOut, obj->design());
 
 	RoseObject * obj2;
-
+	/*
 	//find prod in new design
 	RoseCursor cursor;
 	cursor.traverse(ProdOut);
@@ -869,11 +865,10 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		prodf = prod->formation();
 		p = prodf ? prodf->of_product() : 0;
 	} 
-
+	*/
 	tag_subassembly(old_prod);
 	tag_shape_annotation(src);
 	tag_step_extras(src);
-
 
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care
@@ -889,6 +884,10 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	}
 
 	MakeReferencesAndAnchors(src, ProdOut, dir);
+	/*//FOR TESTING
+	RoseP21Writer::preserve_eids = ROSE_TRUE;
+	RoseP21Writer::sort_eids = ROSE_TRUE;
+	//#########################################*/
 	ProdOut->save();
 
 	//move back
@@ -931,7 +930,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
 		dir.append(std::to_string(i));
 		rose_mkdir(dir.c_str());
-
+		PutOut(pd, dir); //make stepfilefor assembly. Can it be made into a parent? of its subassemblies? (like for references)
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
@@ -960,7 +959,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	return 0;
 }
 
-int CountSubs(stp_product_definition * root){
+int CountSubs(stp_product_definition * root){ //return the total count of subassemblies in a product
 	unsigned subs = 0;
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 	if (pm->child_nauos.size()) {
@@ -970,8 +969,29 @@ int CountSubs(stp_product_definition * root){
 		}
 		subs += sz;
 	}
-
 	return subs;
+}
+
+int EmptyMaster(RoseDesign * master){
+	if (!master){ return 1; }
+	RoseCursor objs;
+	RoseObject * obj;
+	stix_split_clear_needed_and_ignore_trimmed(master); //remove and markings master may have
+
+	//mark master for the things we don't want
+	tag_and_strip_exported_products(master);
+	tag_shape_annotation(master);
+	tag_step_extras(master);
+	tag_properties(master);
+
+	// Move back things that we do not want
+	objs.traverse(master);
+	objs.domain(ROSE_DOMAIN(RoseStructure));
+	while ((obj = objs.next()) != 0) {
+		if (!stix_split_is_export(obj) ) { rose_move_to_trash(obj); }
+	}
+	
+	return 0;
 }
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
@@ -1002,14 +1022,20 @@ int split(RoseDesign * master, std::string dir){
 	}
 	if (sz == 0) { return 1;}
 
-	PutOutHelper(root, dir); //only putout from the node with the most children
-	
+	PutOutHelper(root, dir); //only call putout from the assembly with the most sub-assemblies, this is the head/root assembly
+	EmptyMaster(master); //remove geometry from master
+
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		rose_move_to_trash(roots[i]);
 		//delete roots children?
 	}
 
 	update_uri_forwarding(master);
+	rose_release_backptrs(master);
+	/*//FOR TESTING
+	RoseP21Writer::preserve_eids = ROSE_TRUE;
+	RoseP21Writer::sort_eids = ROSE_TRUE;
+	//################*/
 	master->save(); //save changes to master
 	rose_empty_trash();
 	return 0;
