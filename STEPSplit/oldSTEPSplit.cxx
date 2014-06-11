@@ -793,10 +793,11 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	ListOfRoseObject Parents;
 	while (obj = curse.next())
 	{
+		if (obj->domain() == ROSE_DOMAIN(stp_product_definition) && obj->domain()) { std::cout << "obj: " << obj->entity_id() << ", " << obj->domain()->name() << std::endl; }
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
 		//std::cout<< obj->domain()->typeIsSelect() << "\n";
-		if (Parents.size() == 0)
+		if (Parents.size() == 0 || obj->domain() == ROSE_DOMAIN(stp_product_definition))
 		{
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
@@ -884,6 +885,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	}
 
 	MakeReferencesAndAnchors(src, ProdOut, dir);
+
 	/*//FOR TESTING
 	RoseP21Writer::preserve_eids = ROSE_TRUE;
 	RoseP21Writer::sort_eids = ROSE_TRUE;
