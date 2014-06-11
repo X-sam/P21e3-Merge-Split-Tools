@@ -839,7 +839,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	ProdOut->fileDirectory(dir.c_str());
 	//copy_header (ProdOut, obj->design());
     //copy_schema (ProdOut, obj->design());
-	ProdOut->save(); //save ProdOut as prod->id().stp	*/
+	//ProdOut->save(); //save ProdOut as prod->id().stp	*/
 
 	RoseObject * obj2;
 
@@ -870,7 +870,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		prodf = prod->formation();
 		p = prodf ? prodf->of_product() : 0;
 	} 
-	ProdOut->save();
+	//ProdOut->save();
 
 	tag_subassembly(old_prod);
 	tag_shape_annotation(src);
@@ -893,7 +893,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	//objs.traverse(src);
 	//objs.domain(ROSE_DOMAIN(RoseUnion));
 	//while ((obj2 = objs.next()) != 0) { obj2->move(ProdOut); }
-	ProdOut->save();
+	//ProdOut->save();
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 	ProdOut->save();
 
