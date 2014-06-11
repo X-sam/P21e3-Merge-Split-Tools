@@ -696,8 +696,8 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){
-		//std::cout << anchor << " " << obj->domain()->typeIsSelect() << std::endl;
-		return;
+		std::cout << anchor << " " << obj->domain()->typeIsSelect() << std::endl;
+		//return;
 	}
 	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
 
@@ -869,7 +869,6 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		prodf = prod->formation();
 		p = prodf ? prodf->of_product() : 0;
 	} 
-	//ProdOut->save();
 
 	tag_subassembly(old_prod);
 	tag_shape_annotation(src);
@@ -889,10 +888,6 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		}
 	}
 
-	//objs.traverse(src);
-	//objs.domain(ROSE_DOMAIN(RoseUnion));
-	//while ((obj2 = objs.next()) != 0) { obj2->move(ProdOut); }
-	//ProdOut->save();
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 	ProdOut->save();
 
