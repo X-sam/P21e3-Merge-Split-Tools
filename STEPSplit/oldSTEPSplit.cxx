@@ -793,11 +793,11 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	ListOfRoseObject Parents;
 	while (obj = curse.next())
 	{
-		if (obj->domain() == ROSE_DOMAIN(stp_product_definition) && obj->domain()) { std::cout << "obj: " << obj->entity_id() << ", " << obj->domain()->name() << std::endl; }
+		//if (obj->domain() == ROSE_DOMAIN(stp_product_definition) && obj->domain()) { std::cout << "obj: " << obj->entity_id() << ", " << obj->domain()->name() << std::endl; }
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
 		//std::cout<< obj->domain()->typeIsSelect() << "\n";
-		if (Parents.size() == 0 || obj->domain() == ROSE_DOMAIN(stp_product_definition))
+		if (Parents.size() == 0)// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
 		{
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
@@ -838,35 +838,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
     //copy_schema (ProdOut, obj->design());
 
 	RoseObject * obj2;
-	/*
-	//find prod in new design
-	RoseCursor cursor;
-	cursor.traverse(ProdOut);
-	cursor.domain(ROSE_DOMAIN(stp_product_definition));
-	//std::cout << cursor.size() << std::endl;
 
-	if (cursor.size() > 1){
-		stp_product_definition * tmp_pd; 		stp_product_definition_formation * tmp_pdf;		stp_product * tmp_p;		std::string forComp;
-		while (obj2 = cursor.next())	{
-			tmp_pd = ROSE_CAST(stp_product_definition, obj2);
-			tmp_pdf = tmp_pd->formation();
-			tmp_p = tmp_pdf ? tmp_pdf->of_product() : 0;
-
-			std::string forComp = tmp_p->name(); //allows use of .compare
-			if (forComp.compare((p->name())) == 0){
-				prod = tmp_pd;
-				prodf = prod->formation();
-				p = prodf ? prodf->of_product() : 0;
-				break;
-			}
-		}
-	}
-	else{
-		prod = ROSE_CAST(stp_product_definition, cursor.next());
-		prodf = prod->formation();
-		p = prodf ? prodf->of_product() : 0;
-	} 
-	*/
 	tag_subassembly(old_prod);
 	tag_shape_annotation(src);
 	tag_step_extras(src);
@@ -875,6 +847,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	// destination design.   It does not care
 	// where aggregates are though.
 	//
+	prod->move(ProdOut);
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
@@ -883,7 +856,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 			obj2->move(ProdOut);
 		}
 	}
-
+	addRefAndAnchor(prod, ProdOut, src, dir);
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 
 	/*//FOR TESTING
