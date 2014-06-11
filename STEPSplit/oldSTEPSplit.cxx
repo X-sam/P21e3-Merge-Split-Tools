@@ -839,7 +839,6 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	ProdOut->fileDirectory(dir.c_str());
 	//copy_header (ProdOut, obj->design());
     //copy_schema (ProdOut, obj->design());
-	//ProdOut->save(); //save ProdOut as prod->id().stp	*/
 
 	RoseObject * obj2;
 
@@ -914,7 +913,7 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		// Ignore temporaries created for the split
 		if (!StixMgrSplitTmpObj::find(obj2)) obj2->move(src);
 	}
-	//obj->design()->save(); 
+ 
 	prod = old_prod;
 	rose_move_to_trash(ProdOut);
 }
@@ -966,6 +965,20 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	return 0;
 }
 
+int CountSubs(stp_product_definition * root){
+	unsigned subs = 0;
+	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
+	if (pm->child_nauos.size()) {
+		unsigned i, sz;
+		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++){
+			subs += CountSubs(stix_get_related_pdef(pm->child_nauos[i]));
+		}
+		subs += sz;
+	}
+
+	return subs;
+}
+
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
 int split(RoseDesign * master, std::string dir){
 	//traverse to find obj that match type
@@ -983,17 +996,19 @@ int split(RoseDesign * master, std::string dir){
 	stix_tag_asms(master);
 	StixMgrProperty::tag_design(master);
 	StixMgrPropertyRep::tag_design(master);
-	
 
 	StixMgrSplitStatus::export_only_needed = 1;
-	//printf ("\nPRODUCT TREE ====================\n");
-	//rose_mark_begin();
+	std::cout << "roots: " << roots.size() << std::endl;
+	stp_product_definition * root;
+	unsigned tmp, mostSubs = 0;
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		PutOutHelper(roots[i], dir);
-		///rose_empty_trash();
+		tmp = CountSubs(roots[i]);
+		if (tmp > mostSubs){ mostSubs = tmp; root = roots[i]; std::cout << "Highest Sub count: " << mostSubs << std::endl; }
 	}
 	if (sz == 0) { return 1;}
 
+	PutOutHelper(root, dir); //only putout from the node with the most children
+	
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		rose_move_to_trash(roots[i]);
 		//delete roots children?
