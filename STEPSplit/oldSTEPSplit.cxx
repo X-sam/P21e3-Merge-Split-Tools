@@ -819,7 +819,6 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	stix_split_clear_needed_and_ignore_trimmed(src);
 
 	RoseObject * obj = ROSE_CAST(RoseObject, prod);
-	stp_product_definition * old_prod = prod;
 	stp_product_definition_formation * prodf = prod->formation();
 	stp_product * p = prodf ? prodf->of_product() : 0;
 
@@ -832,14 +831,13 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	ProdOutName = SafeName(ProdOutName);
 	RoseDesign * ProdOut = pnew RoseDesign(ProdOutName.c_str());
 
-	//prod->copy(ProdOut, INT_MAX);	//scan & remove files from master as needed 
 	ProdOut->fileDirectory(dir.c_str());
-	//copy_header (ProdOut, obj->design());
-    //copy_schema (ProdOut, obj->design());
+	copy_header (ProdOut, obj->design());
+    copy_schema (ProdOut, obj->design());
 
 	RoseObject * obj2;
 
-	tag_subassembly(old_prod);
+	tag_subassembly(prod);
 	tag_shape_annotation(src);
 	tag_step_extras(src);
 
@@ -859,22 +857,15 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	addRefAndAnchor(prod, ProdOut, src, dir);
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 
-	/*//FOR TESTING
-	RoseP21Writer::preserve_eids = ROSE_TRUE;
-	RoseP21Writer::sort_eids = ROSE_TRUE;
-	//#########################################*/
 	ProdOut->save();
 
 	//move back
 	// Mark everything as having been exported for later use
 	stix_split_all_trimmed(ProdOut);
-
 	//--------------------------------------------------
 	// Restore references to temporary objects and move everything to
 	// the original design
 	stix_restore_all_tmps(ProdOut);
-
-	//prod->move(obj->design(), INT_MAX);
 
 	objs.traverse(ProdOut);
 	objs.domain(0);
@@ -882,8 +873,6 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		// Ignore temporaries created for the split
 		if (!StixMgrSplitTmpObj::find(obj2)) obj2->move(src);
 	}
- 
-	prod = old_prod;
 	rose_move_to_trash(ProdOut);
 }
 
@@ -905,7 +894,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
 		dir.append(std::to_string(i));
 		rose_mkdir(dir.c_str());
-		PutOut(pd, dir); //make stepfilefor assembly. Can it be made into a parent? of its subassemblies? (like for references)
+		PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 		// recurse to all subproducts, do this even if there is geometry?
 		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
 			stix_split_delete_all_marks(pd->design());
@@ -919,16 +908,12 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 
 	// no shapes with real geometry
 	if (i<sz) {
-		//printf("EXPORTING PD #%lu (%s)\n",
-		//pd->entity_id(), p->name() ? p->name() : "");
+		//printf("EXPORTING PD #%lu (%s)\n", pd->entity_id(), p->name() ? p->name() : "");
 		PutOut(pd, dir);
 	}
 	else {
-		//printf("IGNORING PD #%lu (%s) (no geometry)\n",
-		//pd->entity_id(), p->name() ? p->name() : "");
-
+		//printf("IGNORING PD #%lu (%s) (no geometry)\n", pd->entity_id(), p->name() ? p->name() : "");
 		return 0;
-
 		}
 	}
 	return 0;
@@ -950,8 +935,10 @@ int CountSubs(stp_product_definition * root){ //return the total count of subass
 int EmptyMaster(RoseDesign * master){
 	if (!master){ return 1; }
 	RoseCursor objs;
-	RoseObject * obj;
-	stix_split_clear_needed_and_ignore_trimmed(master); //remove and markings master may have
+	RoseObject * obj;	
+		//traverse and mark assemblies with children that have geometry
+
+	stix_split_clear_needed_and_ignore_trimmed(master); //remove any markings master may have
 
 	//mark master for the things we don't want
 	tag_and_strip_exported_products(master);
@@ -971,10 +958,6 @@ int EmptyMaster(RoseDesign * master){
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
 int split(RoseDesign * master, std::string dir){
-	//traverse to find obj that match type
-	//RoseCursor cursor;
-	//RoseObject * obj;
-
 	// Navigate through the assembly and export any part which has
 	// geometry.
 	unsigned int i,sz;
@@ -1042,6 +1025,8 @@ int main(int argc, char* argv[])
 	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
 	master->fileDirectory(dir.c_str());
 	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
+
+
 	
 	return 0;
 }
