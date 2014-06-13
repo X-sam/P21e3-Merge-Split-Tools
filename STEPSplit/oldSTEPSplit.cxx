@@ -984,6 +984,7 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod){
 		}
 	}
 	rose_move_to_trash(prod);
+	return 0;
 }
 
 /*
