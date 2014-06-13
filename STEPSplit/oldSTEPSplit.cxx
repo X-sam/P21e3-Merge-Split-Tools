@@ -791,14 +791,11 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	rose_mark_end();
 	curse.traverse(destination);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
-	//std::cout << curse.size() << "\n";
 	ListOfRoseObject Parents;
 	while (obj = curse.next())
 	{
-		//if (obj->domain() == ROSE_DOMAIN(stp_product_definition) && obj->domain()) { std::cout << "obj: " << obj->entity_id() << ", " << obj->domain()->name() << std::endl; }
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
-		//std::cout<< obj->domain()->typeIsSelect() << "\n";
 		if (Parents.size() == 0)// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
 		{
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
@@ -987,37 +984,6 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod){
 	return 0;
 }
 
-/*
-int EmptyMaster(RoseDesign * master, stp_product_definition *root){
-	if (!master){ return 1; }
-	RoseCursor objs;
-	RoseObject * obj;
-	
-	stix_split_clear_needed_and_ignore_trimmed(master); //remove any markings master may have
-
-	//mark master for the things we don't want
-	tag_and_strip_exported_products(master);
-	tag_shape_annotation(master);
-	tag_step_extras(master);
-	tag_properties(master);
-
-	// Move back things that we do not want
-	objs.traverse(master);
-	objs.domain(ROSE_DOMAIN(RoseStructure));
-	while ((obj = objs.next()) != 0) {
-		if (!stix_split_is_export(obj)) { 
-			rose_move_to_trash(obj); 
-		}
-		else{
-			if (obj->domain() == root->domain()){
-				if (!rose_is_marked(obj)){ rose_move_to_trash(obj); }
-			}
-		}
-	}
-	//traverse master again this time checking for objects that exist as references as well
-	return 0;
-}
-*/
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a version of split thtat gets called from putouthelper to create 
 	//trees with multiple levels of references
 	if (!subMaster) { return 1; }
