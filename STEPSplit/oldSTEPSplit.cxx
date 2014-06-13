@@ -700,7 +700,7 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
 	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
-	std::cout << "ading anchor to " << ProdOut->name() << " from " << obj->design()->name() << std::endl;
+	std::cout << "ading anchor in " << ProdOut->name() << " for " << obj->design()->name() << std::endl;
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
@@ -826,7 +826,7 @@ stp_product_definition * PutOut(stp_product_definition * prod, std::string dir){
 	stp_product * p = prod->formation() ? prod->formation()->of_product() : 0;
 
 	stix_split_clear_needed_and_ignore_trimmed(src);
-
+	std::cout << "\nCREATING FILE FOR: " << p->name() << " from " << src->name() << std::endl;
 	if (!p) return NULL;	//No product so can't do things right?
 	std::string ProdOutName(p->name());
 	ProdOutName.append("_split_item");
@@ -846,24 +846,26 @@ stp_product_definition * PutOut(stp_product_definition * prod, std::string dir){
 
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
-	ListOfRoseObject toCopy;
-
-	toCopy.add(prod);
-	//prod->move(ProdOut);
-	stp_product_definition * rt_val = prod;
+	ListOfRoseObject * toCopy = pnew ListOfRoseObject;
+	stp_product_definition * rt_val;
+	toCopy->add(prod); //copy prod over
+	rt_val = ROSE_CAST(stp_product_definition, toCopy->get(0));
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
+	int count = 0;
 	while ((obj2 = objs.next()) != 0) {
 		if (stix_split_is_export(obj2)) {
-			toCopy.add(obj2);
-			//obj2->move(ProdOut);
+			toCopy->add(obj2);
+			count++;
 		}
 	}
-	toCopy.copy(ProdOut, INT_MAX);
+
+	toCopy->move(ProdOut, INT_MAX);
+	std::cout << "\nLIST MOVED " << count << " objects. rtval des in putout " << rt_val->design()->name() << std::endl;
 	addRefAndAnchor(prod, ProdOut, src, dir);
 	MakeReferencesAndAnchors(src, ProdOut, dir);
-
+	rose_move_to_trash(toCopy);
 	ProdOut->save();
 	return rt_val;
 }
@@ -909,22 +911,23 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 			while (rose_dir_exists((dir + std::to_string(i)).c_str())) i++;
 			dir.append(std::to_string(i));
 			rose_mkdir(dir.c_str());
-			PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
-			RoseDesign * dst = pd->design(); //create pointer to design of new assembly
-			backToSource(pd->design(), src); //
+			newPD = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
+			std::cout << "newpd design in IF statement: "<< newPD->design()->name() << std::endl;
+			backToSource(pd->design(), src);
 		}
 		//pd is an assembly and will be the source of nut and bolt
-		std::cout << "newpd design: " << newPD->design() << std::endl;
+		std::cout << "newpd design: " << newPD->design()->name() << std::endl;
 		// recurse to all subproducts, do this even if there is geometry
 		//change pd to its analog in assembly
 		pm = StixMgrAsmProduct::find(newPD);
 		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 			stix_split_delete_all_marks(newPD->design());
-			//std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
+			std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
 			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir, !outPD);
 		}
 	}
 	else {
+		
 		for (i = 0, sz = pm->shapes.size(); i < sz; i++) {
 			if (has_geometry(pm->shapes[i])) break;
 		}
@@ -1049,8 +1052,10 @@ int main(int argc, char* argv[])
 	RoseDesign * master = ROSE.useDesign((dir + "/" + "master.stp").c_str());
 	copy_header(master, origional);
 	copy_schema(master, origional);
+
 	stix_tag_units(master);
 	ARMpopulate(master);
+
 	master->fileDirectory(dir.c_str());
 	master->name("master");
 
