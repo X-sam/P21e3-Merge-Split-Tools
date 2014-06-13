@@ -1039,50 +1039,6 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	return 0;
 }
 
-//split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
-int split(RoseDesign * master, std::string dir, bool outPD){ //outPD controls the whether the highest assembly in master is treated 
-	// Navigate through the assembly and export any part which has
-	// geometry.
-	unsigned int i, sz;
-
-	StpAsmProductDefVec roots;
-	stix_find_root_products(&roots, master);
-
-	rose_compute_backptrs(master);
-	stix_tag_asms(master);
-	StixMgrProperty::tag_design(master);
-	StixMgrPropertyRep::tag_design(master);
-
-	StixMgrSplitStatus::export_only_needed = 1;
-	std::cout << "roots: " << roots.size() << std::endl;
-	stp_product_definition * root;
-	unsigned tmp, mostSubs = 0;
-	for (i = 0, sz = roots.size(); i < sz; i++){
-		tmp = CountSubs(roots[i]);
-		if (tmp > mostSubs){ mostSubs = tmp; root = roots[i]; std::cout << "Highest Sub count: " << mostSubs << std::endl; }
-	}
-	if (sz == 0) { return 1; }
-	if (mostSubs == 1){
-		for (i = 0, sz = roots.size(); i < sz; i++){ PutOutHelper(roots[i], dir); }
-	}
-	else{
-		PutOutHelper(root, dir); //only call putout from the assembly with the most sub-assemblies, this is the head/root assembly
-	}
-	EmptyMaster(master, root); //remove geometry from master
-
-	for (i = 0, sz = roots.size(); i < sz; i++){
-		rose_move_to_trash(roots[i]);	//delete roots
-	}
-
-	update_uri_forwarding(master);
-	rose_release_backptrs(master);
-
-	master->save(); //save changes to master
-	rose_empty_trash();
-	return 0;
-}
-
-
 int main(int argc, char* argv[])
 {
 	stplib_init();	// initialize merged cad library
