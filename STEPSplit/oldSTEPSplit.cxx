@@ -22,8 +22,11 @@
 void handleAggregate(RoseObject * obj, std::string dir = "");
 void handleEntity(RoseObject * obj, std::string dir = "");
 
-void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir="");
+void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir = "");
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
+void backToSource(RoseDesign * ProdOut, RoseDesign * src);
+int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD = true);
+int split(RoseDesign * master, std::string dir = "", bool outPD = true);
 
 //####################### markers/taggers ##########################
 
@@ -34,12 +37,12 @@ static void copy_header(RoseDesign * dst, RoseDesign * src)
 	dst->initialize_header();
 	dst->header_name()->originating_system(src->header_name()->originating_system());
 	dst->header_name()->authorisation(src->header_name()->authorisation());
-	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+	for (i = 0, sz = src->header_name()->author()->size(); i < sz; i++)
 		dst->header_name()->author()->add(
 		src->header_name()->author()->get(i)
 		);
 
-	for (i = 0, sz = src->header_name()->author()->size(); i<sz; i++)
+	for (i = 0, sz = src->header_name()->author()->size(); i < sz; i++)
 		dst->header_name()->organization()->add(
 		src->header_name()->organization()->get(i)
 		);
@@ -166,7 +169,7 @@ static int has_geometry(stp_representation * rep)
 	if (!rep) return 0;
 
 	// Does this contain more than just axis placements?
-	for (i = 0, sz = rep->items()->size(); i<sz; i++) {
+	for (i = 0, sz = rep->items()->size(); i < sz; i++) {
 		stp_representation_item * it = rep->items()->get(i);
 		if (!it->isa(ROSE_DOMAIN(stp_placement)))
 			return 1;
@@ -179,7 +182,7 @@ static int has_geometry(stp_representation * rep)
 	StixMgrAsmShapeRep * mgr = StixMgrAsmShapeRep::find(rep);
 	if (!mgr) return 0;
 
-	for (i = 0, sz = mgr->child_rels.size(); i<sz; i++) {
+	for (i = 0, sz = mgr->child_rels.size(); i < sz; i++) {
 		StixMgrAsmRelation * relmgr =
 			StixMgrAsmRelation::find(mgr->child_rels[i]);
 
@@ -218,7 +221,7 @@ void tag_step_properties(
 		if (!pdrmgr) continue;
 
 		unsigned i, sz;
-		for (i = 0, sz = pdrmgr->size(); i<sz; i++) {
+		for (i = 0, sz = pdrmgr->size(); i < sz; i++) {
 			stix_split_mark_needed(pdrmgr->get(i), (unsigned)-1);
 		}
 	}
@@ -273,7 +276,7 @@ void tag_properties(
 		if (!strip_property)
 		{
 			unsigned i, sz;
-			for (i = 0, sz = rep->items()->size(); i<sz; i++)
+			for (i = 0, sz = rep->items()->size(); i < sz; i++)
 			{
 				stp_representation_item * it = rep->items()->get(i);
 				if (stix_split_is_needed(it)) continue;
@@ -333,7 +336,7 @@ void tag_subassembly(
 
 	//printf("TAGGING PART #%lu\n", pd-> entity_id());
 
-	for (i = 0, sz = pd_mgr->child_nauos.size(); i<sz; i++)
+	for (i = 0, sz = pd_mgr->child_nauos.size(); i < sz; i++)
 	{
 		// tag children.  Be sure to get shape property so that any
 		// context dependent shape rep gets pulled in as well.
@@ -345,7 +348,7 @@ void tag_subassembly(
 		tag_subassembly(stix_get_related_pdef(nauo));
 	}
 
-	for (i = 0, sz = pd_mgr->shapes.size(); i<sz; i++) {
+	for (i = 0, sz = pd_mgr->shapes.size(); i < sz; i++) {
 		// Mark all direct shapes and any related shapes.  We will get
 		// the property things in between later.
 
@@ -353,7 +356,7 @@ void tag_subassembly(
 		if (!rep_mgr) continue;
 
 		unsigned j, szz;
-		for (j = 0, szz = rep_mgr->child_rels.size(); j<szz; j++) {
+		for (j = 0, szz = rep_mgr->child_rels.size(); j < szz; j++) {
 			stix_split_mark_needed(rep_mgr->child_rels[j], (unsigned)-1);
 		}
 	}
@@ -403,7 +406,7 @@ void tag_and_strip_exported_from_tree(
 		printf(" => PD not exported, examining children\n");
 
 		// Not exported, examine any children.
-		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)
+		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++)
 		{
 			stix_split_mark_needed(pm->child_nauos[i]);
 
@@ -416,7 +419,7 @@ void tag_and_strip_exported_from_tree(
 		stix_split_mark_needed(stix_get_shape_property(pd));
 
 		// make sure that we get the shapes for this too
-		for (i = 0, sz = pm->shapes.size(); i<sz; i++)
+		for (i = 0, sz = pm->shapes.size(); i < sz; i++)
 		{
 			stix_split_mark_needed(pm->shapes[i], (unsigned)-1);
 			// /* The parent and child rep_relationships */
@@ -451,7 +454,7 @@ void tag_and_strip_exported_from_tree(
 	// to attach the external ref to.
 	//
 	stp_representation * old_rep = 0;
-	for (i = 0, sz = pm->shapes.size(); i<sz; i++)
+	for (i = 0, sz = pm->shapes.size(); i < sz; i++)
 	{
 		if (pm->shapes[i]->domain() == ROSE_DOMAIN(stp_shape_representation)) {
 			old_rep = pm->shapes[i];
@@ -472,7 +475,7 @@ void tag_and_strip_exported_from_tree(
 	}
 
 	StixMgrPropertyRep * repmgr = StixMgrPropertyRep::find(pds);
-	for (i = 0, sz = repmgr->size(); i<sz; i++)
+	for (i = 0, sz = repmgr->size(); i < sz; i++)
 	{
 		stp_property_definition_representation * pdr = repmgr->get(i);
 		if (pdr->used_representation() == old_rep &&
@@ -493,7 +496,7 @@ void tag_and_strip_exported_from_tree(
 	main_rep->entity_id(old_rep->entity_id());
 
 	// Add placements, but ignore everything else.
-	for (i = 0, sz = old_rep->items()->size(); i<sz; i++)
+	for (i = 0, sz = old_rep->items()->size(); i < sz; i++)
 	{
 		// FILTER EXTRA AXIS PLACEMENTS
 		stp_representation_item * it = old_rep->items()->get(i);
@@ -528,7 +531,7 @@ void tag_and_strip_exported_products(
 
 	StpAsmProductDefVec roots;
 	stix_find_root_products(&roots, d);
-	for (i = 0, sz = roots.size(); i<sz; i++)
+	for (i = 0, sz = roots.size(); i < sz; i++)
 		tag_and_strip_exported_from_tree(roots[i]);
 
 
@@ -695,15 +698,15 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
-	if (obj->entity_id() == 0){	std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
+	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
 	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
-
+	std::cout << "ading anchor to " << ProdOut->name() << " from " << obj->design()->name() << std::endl;
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
 	int slashpos = reference.find("/");
-	if (slashpos > 0 && slashpos < reference.size()){ 
-		reference = reference.substr(slashpos+1); 
+	if (slashpos > 0 && slashpos < reference.size()){
+		reference = reference.substr(slashpos + 1);
 	}
 	reference.append(ProdOut->name());	//Add the file name.
 	reference.append(".stp#" + anchor); //Finally add the file type, a pound, and the anchor. It'll look like "folder/file.stp#advanced_face_split_item123"
@@ -805,35 +808,35 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 }
 
 //takes pointer to a RoseObject from Master and creates a complete sub file
-void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
+stp_product_definition * PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
 
-	if (!prod) return; 
+	if (!prod) return NULL;
 	RoseDesign * src = prod->design();
 
 	StixMgrSplitProduct * split_mgr = StixMgrSplitProduct::find(prod);
-	if (split_mgr) return;   // already been exported
+	if (split_mgr) return NULL;   // already been exported
 
 	StixMgrAsmProduct * pd_mgr = StixMgrAsmProduct::find(prod);
-	if (!pd_mgr) return;  // not a proper part
+	if (!pd_mgr) return NULL;  // not a proper part
 
 	stix_split_clear_needed_and_ignore_trimmed(src);
 
 	RoseObject * obj = ROSE_CAST(RoseObject, prod);
-	stp_product_definition_formation * prodf = prod->formation();
-	stp_product * p = prodf ? prodf->of_product() : 0;
+	//stp_product_definition_formation * prodf = prod->formation();
+	stp_product * p = prod->formation() ? prod->formation()->of_product() : 0;
 
 	stix_split_clear_needed_and_ignore_trimmed(src);
 
-	if (!p) return;	//No product so can't do things right?
+	if (!p) return NULL;	//No product so can't do things right?
 	std::string ProdOutName(p->name());
-	ProdOutName.append("_split_item" );
-	ProdOutName.append( std::to_string(p->entity_id())  );
+	ProdOutName.append("_split_item");
+	ProdOutName.append(std::to_string(p->entity_id()));
 	ProdOutName = SafeName(ProdOutName);
 	RoseDesign * ProdOut = pnew RoseDesign(ProdOutName.c_str());
 
 	ProdOut->fileDirectory(dir.c_str());
-	copy_header (ProdOut, obj->design());
-    copy_schema (ProdOut, obj->design());
+	copy_header(ProdOut, obj->design());
+	copy_schema(ProdOut, obj->design());
 
 	RoseObject * obj2;
 
@@ -842,10 +845,10 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	tag_step_extras(src);
 
 	// Move all of the objects that we need to export over to the
-	// destination design.   It does not care
-	// where aggregates are though.
-	//
+	// destination design.   It does not care where aggregates are though.
+
 	prod->move(ProdOut);
+	stp_product_definition * rt_val = prod;
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
@@ -858,7 +861,10 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 
 	ProdOut->save();
+	return rt_val;
+}
 
+void backToSource(RoseDesign * ProdOut, RoseDesign * src){
 	//move back
 	// Mark everything as having been exported for later use
 	stix_split_all_trimmed(ProdOut);
@@ -866,6 +872,8 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 	// Restore references to temporary objects and move everything to
 	// the original design
 	stix_restore_all_tmps(ProdOut);
+	RoseCursor objs;
+	RoseObject * obj2;
 
 	objs.traverse(ProdOut);
 	objs.domain(0);
@@ -873,10 +881,23 @@ void PutOut(stp_product_definition * prod, std::string dir){ //(product,relative
 		// Ignore temporaries created for the split
 		if (!StixMgrSplitTmpObj::find(obj2)) obj2->move(src);
 	}
-	rose_move_to_trash(ProdOut);
+
 }
 
-int PutOutHelper(stp_product_definition * pd, std::string dir){
+stp_product_definition* findPDinNewDes(stp_product_definition *pd, RoseDesign *des){
+	RoseCursor curse;
+	curse.traverse(des);
+	curse.domain(ROSE_DOMAIN(stp_product_definition));
+	if (curse.size() == 1){ return ROSE_CAST(stp_product_definition, curse.next()); }
+	else{
+		RoseObject * obj;
+		while (obj = curse.next()){
+
+		}
+	}
+}
+
+int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
 	stp_product_definition_formation * pdf = pd->formation();
@@ -884,36 +905,50 @@ int PutOutHelper(stp_product_definition * pd, std::string dir){
 	std::string name = p->name();
 	name = SafeName(name);
 	unsigned i, sz;
+	stp_product_definition * newPD = pd;
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
-		printf("IGNORING PD #%lu (%s) (assembly) %s\n",
-		pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
-		dir.push_back('/');
-		dir.append(SafeName(name));
-		int i = 1;
-		while (rose_dir_exists((dir+std::to_string(i)).c_str())) i++;
-		dir.append(std::to_string(i));
-		rose_mkdir(dir.c_str());
-		PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
-		// recurse to all subproducts, do this even if there is geometry?
-		for (i = 0, sz = pm->child_nauos.size(); i<sz; i++)		{
-			stix_split_delete_all_marks(pd->design());
-			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
+		RoseDesign * src = pd->design();
+		if (outPD){
+			printf("IGNORING PD #%lu (%s) (assembly) %s\n",
+				pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
+			dir.push_back('/');
+			dir.append(SafeName(name));
+			int i = 1;
+			while (rose_dir_exists((dir + std::to_string(i)).c_str())) i++;
+			dir.append(std::to_string(i));
+			rose_mkdir(dir.c_str());
+			PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
+			RoseDesign * dst = pd->design(); //create pointer to design of new assembly
+			backToSource(pd->design(), src); //
+			newPD = findPDinNewDes(pd, dst);
+		}
+		//pd is an assembly and will be the source of nut and bolt
+		
+		// recurse to all subproducts, do this even if there is geometry
+		//change pd to its analog in assembly
+		pm = StixMgrAsmProduct::find(newPD);
+		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
+			stix_split_delete_all_marks(newPD->design());
+			//std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
+			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir, !outPD);
 		}
 	}
 	else {
-	for (i = 0, sz = pm->shapes.size(); i<sz; i++) {
-		if (has_geometry(pm->shapes[i])) break;
-	}
+		for (i = 0, sz = pm->shapes.size(); i < sz; i++) {
+			if (has_geometry(pm->shapes[i])) break;
+		}
 
-	// no shapes with real geometry
-	if (i<sz) {
-		//printf("EXPORTING PD #%lu (%s)\n", pd->entity_id(), p->name() ? p->name() : "");
-		PutOut(pd, dir);
-	}
-	else {
-		//printf("IGNORING PD #%lu (%s) (no geometry)\n", pd->entity_id(), p->name() ? p->name() : "");
-		return 0;
+		// no shapes with real geometry
+		if (i < sz) {
+			RoseDesign * src = pd->design();
+			//printf("EXPORTING PD #%lu (%s)\n", pd->entity_id(), p->name() ? p->name() : "");
+			PutOut(pd, dir);
+			backToSource(pd->design(), src);
+		}
+		else {
+			//printf("IGNORING PD #%lu (%s) (no geometry)\n", pd->entity_id(), p->name() ? p->name() : "");
+			return 0;
 		}
 	}
 	return 0;
@@ -935,8 +970,8 @@ int CountSubs(stp_product_definition * root){ //return the total count of subass
 int EmptyMaster(RoseDesign * master){
 	if (!master){ return 1; }
 	RoseCursor objs;
-	RoseObject * obj;	
-		//traverse and mark assemblies with children that have geometry
+	RoseObject * obj;
+	//traverse and mark assemblies with children that have geometry
 
 	stix_split_clear_needed_and_ignore_trimmed(master); //remove any markings master may have
 
@@ -950,21 +985,21 @@ int EmptyMaster(RoseDesign * master){
 	objs.traverse(master);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
 	while ((obj = objs.next()) != 0) {
-		if (!stix_split_is_export(obj) ) { rose_move_to_trash(obj); }
+		if (!stix_split_is_export(obj)) { rose_move_to_trash(obj); }
 	}
-	
+
 	return 0;
 }
 
 //split takes in a design and splits it into pieces. currently seperates every product into a new file linked to the orional file. 
-int split(RoseDesign * master, std::string dir){
+int split(RoseDesign * master, std::string dir, bool outPD){ //outPD controls the whether the highest assembly in master is treated 
 	// Navigate through the assembly and export any part which has
 	// geometry.
-	unsigned int i,sz;
+	unsigned int i, sz;
 
 	StpAsmProductDefVec roots;
-	stix_find_root_products (&roots, master); 
-	
+	stix_find_root_products(&roots, master);
+
 	rose_compute_backptrs(master);
 	stix_tag_asms(master);
 	StixMgrProperty::tag_design(master);
@@ -978,9 +1013,13 @@ int split(RoseDesign * master, std::string dir){
 		tmp = CountSubs(roots[i]);
 		if (tmp > mostSubs){ mostSubs = tmp; root = roots[i]; std::cout << "Highest Sub count: " << mostSubs << std::endl; }
 	}
-	if (sz == 0) { return 1;}
-
-	PutOutHelper(root, dir); //only call putout from the assembly with the most sub-assemblies, this is the head/root assembly
+	if (sz == 0) { return 1; }
+	if (mostSubs == 1){
+		for (i = 0, sz = roots.size(); i < sz; i++){ PutOutHelper(roots[i], dir); }
+	}
+	else{
+		PutOutHelper(root, dir); //only call putout from the assembly with the most sub-assemblies, this is the head/root assembly
+	}
 	EmptyMaster(master); //remove geometry from master
 
 	for (i = 0, sz = roots.size(); i < sz; i++){
@@ -990,10 +1029,7 @@ int split(RoseDesign * master, std::string dir){
 
 	update_uri_forwarding(master);
 	rose_release_backptrs(master);
-	/*//FOR TESTING
-	RoseP21Writer::preserve_eids = ROSE_TRUE;
-	RoseP21Writer::sort_eids = ROSE_TRUE;
-	//################*/
+
 	master->save(); //save changes to master
 	rose_empty_trash();
 	return 0;
@@ -1008,9 +1044,7 @@ int main(int argc, char* argv[])
 	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
-
 	/* Create a RoseDesign to hold the output data*/
-
 	if (argc < 2){
 		std::cout << "Usage: .\\STEPSplit.exe filetosplit.stp\n" << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product" << std::endl;
 		return EXIT_FAILURE;
@@ -1021,12 +1055,29 @@ int main(int argc, char* argv[])
 	std::string dir = "out";
 	rose_mkdir(dir.c_str());
 	origional->fileDirectory(dir.c_str());
-	origional->saveAs("SplitOutput.stp"); // creates a copy of the origonal file with a different name to make testing easier
-	RoseDesign * master = ROSE.useDesign((dir + "/" +"SplitOutput.stp").c_str());
+	origional->saveAs("master.stp"); // creates a copy of the origonal file with a different name to make testing easier
+	RoseDesign * master = ROSE.useDesign((dir + "/" + "master.stp").c_str());
+	copy_header(master, origional);
+	copy_schema(master, origional);
+	stix_tag_units(master);
+	ARMpopulate(master);
 	master->fileDirectory(dir.c_str());
-	if (split(master,dir) == 0) { std::cout << "Success!\n"; }
+	master->name("master");
 
+	ARMCursor cur; //arm cursor
+	ARMObject *a_obj;
+	cur.traverse(master);
 
-	
+	while (a_obj = cur.next()){
+		std::cout << a_obj->getModuleName() << std::endl;
+	}
+
+	if (split(master, dir) == 0) { std::cout << "Success!\n"; }
+
+	cur.traverse(master);
+	while (a_obj = cur.next()){
+		std::cout << a_obj->getModuleName() << std::endl;
+	}
+
 	return 0;
 }
