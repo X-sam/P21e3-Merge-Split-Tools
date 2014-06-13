@@ -920,7 +920,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 		}
 		std::cout << subMaster->name() << std::endl;
 		splitFromSubAssem(subMaster, dir);
-		//backToSource(pd->design(), src); //may be needed later
+		backToSource(pd->design(), src); //may be needed later
 		/*
 		//pd is an assembly and will be the source of nut and bolt
 		std::cout << "newpd design: " << newPD->design()->name() << std::endl;
@@ -994,25 +994,53 @@ int EmptyMaster(RoseDesign * master){
 
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir){//a version of split thtat gets called from putouthelper to create 
 	//trees with multiple levels of references
+	if (!subMaster) { return 1; }
 	unsigned int i, sz;
 	StpAsmProductDefVec roots;
 	stix_find_root_products(&roots, subMaster);
-
+	stp_product_definition * root;
 	rose_compute_backptrs(subMaster);
 	stix_tag_asms(subMaster);
 	StixMgrProperty::tag_design(subMaster);
 	StixMgrPropertyRep::tag_design(subMaster);
 	StixMgrSplitStatus::export_only_needed = 1;
 
-	RoseCursor curse;
-	curse.traverse(subMaster);
-	curse.domain(ROSE_DOMAIN(stp_product_definition));
-	RoseObject * obj;
-	std::cout << subMaster->name() << "has " << curse.size() << " prod defs." << std::endl;
-	while (obj = curse.next()){
-		std::cout << "\nDERKA DERKA PRODUCT: " << ROSE_CAST(stp_product_definition, obj)->formation()->of_product()->name() << std::endl;
+	std::cout << subMaster->name() << "has " << roots.size() << " roots." << std::endl;
+
+	unsigned tmp, mostSubs = 0;
+	for (i = 0, sz = roots.size(); i < sz; i++){
+		tmp = CountSubs(roots[i]);
+		if (tmp > mostSubs){ 
+			mostSubs = tmp; 
+			root = roots[i];
+		}
+	}
+	if (sz == 0) { return 1; }
+	if (mostSubs == 1){
+		std::cout << " all " << roots.size() << " assembly nodes are leaves" << std::endl; //what do
+		return 1;
+	}
+	else{
+		// recurse to all subproducts, do this even if there is geometry
+		//change pd to its analog in assembly
+		StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
+		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
+			stix_split_delete_all_marks(root->design());
+			std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
+			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
+		}
+	}
+	EmptyMaster(subMaster); //remove geometry from master
+
+	for (i = 0, sz = roots.size(); i < sz; i++){
+		rose_move_to_trash(roots[i]);	//delete roots
 	}
 
+	update_uri_forwarding(subMaster);
+	rose_release_backptrs(subMaster);
+
+	subMaster->save(); //save changes to master
+	rose_empty_trash();
 	return 0;
 }
 
@@ -1048,8 +1076,7 @@ int split(RoseDesign * master, std::string dir, bool outPD){ //outPD controls th
 	EmptyMaster(master); //remove geometry from master
 
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		rose_move_to_trash(roots[i]);
-		//delete roots children?
+		rose_move_to_trash(roots[i]);	//delete roots
 	}
 
 	update_uri_forwarding(master);
