@@ -26,6 +26,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 void backToSource(RoseDesign * ProdOut, RoseDesign * src);
 int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD = true);
+int splitFromSubAssem(RoseDesign *subMaster, std::string dir = "");
 int split(RoseDesign * master, std::string dir = "", bool outPD = true);
 
 //####################### markers/taggers ##########################
@@ -808,7 +809,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 }
 
 //takes pointer to a RoseObject from Master and creates a complete sub file
-stp_product_definition * PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
+RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,relative_dir) for splitting the code
 
 	if (!prod) return NULL;
 	RoseDesign * src = prod->design();
@@ -867,7 +868,7 @@ stp_product_definition * PutOut(stp_product_definition * prod, std::string dir){
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 	rose_move_to_trash(toCopy);
 	ProdOut->save();
-	return rt_val;
+	return ProdOut;
 }
 
 void backToSource(RoseDesign * ProdOut, RoseDesign * src){
@@ -902,7 +903,9 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
+		RoseDesign * subMaster;
 		if (outPD){
+			
 			printf("IGNORING PD #%lu (%s) (assembly) %s\n",
 				pd->entity_id(), (p->name()) ? p->name() : "", pd->domain()->name()); //TO DO: IF ASSEMBLY MAKE DIRECTORY 
 			dir.push_back('/');
@@ -911,10 +914,14 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 			while (rose_dir_exists((dir + std::to_string(i)).c_str())) i++;
 			dir.append(std::to_string(i));
 			rose_mkdir(dir.c_str());
-			newPD = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
+			subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 			std::cout << "newpd design in IF statement: "<< newPD->design()->name() << std::endl;
-			backToSource(pd->design(), src);
+			//backToSource(pd->design(), src);
 		}
+		std::cout << subMaster->name() << std::endl;
+		splitFromSubAssem(subMaster, dir);
+		//backToSource(pd->design(), src); //may be needed later
+		/*
 		//pd is an assembly and will be the source of nut and bolt
 		std::cout << "newpd design: " << newPD->design()->name() << std::endl;
 		// recurse to all subproducts, do this even if there is geometry
@@ -925,6 +932,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 			std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
 			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir, !outPD);
 		}
+		*/
 	}
 	else {
 		
@@ -979,6 +987,30 @@ int EmptyMaster(RoseDesign * master){
 	objs.domain(ROSE_DOMAIN(RoseStructure));
 	while ((obj = objs.next()) != 0) {
 		if (!stix_split_is_export(obj)) { rose_move_to_trash(obj); }
+	}
+
+	return 0;
+}
+
+int splitFromSubAssem(RoseDesign *subMaster, std::string dir){//a version of split thtat gets called from putouthelper to create 
+	//trees with multiple levels of references
+	unsigned int i, sz;
+	StpAsmProductDefVec roots;
+	stix_find_root_products(&roots, subMaster);
+
+	rose_compute_backptrs(subMaster);
+	stix_tag_asms(subMaster);
+	StixMgrProperty::tag_design(subMaster);
+	StixMgrPropertyRep::tag_design(subMaster);
+	StixMgrSplitStatus::export_only_needed = 1;
+
+	RoseCursor curse;
+	curse.traverse(subMaster);
+	curse.domain(ROSE_DOMAIN(stp_product_definition));
+	RoseObject * obj;
+	std::cout << subMaster->name() << "has " << curse.size() << " prod defs." << std::endl;
+	while (obj = curse.next()){
+		std::cout << "\nDERKA DERKA PRODUCT: " << ROSE_CAST(stp_product_definition, obj)->formation()->of_product()->name() << std::endl;
 	}
 
 	return 0;
