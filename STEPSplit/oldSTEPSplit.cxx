@@ -884,19 +884,6 @@ void backToSource(RoseDesign * ProdOut, RoseDesign * src){
 
 }
 
-stp_product_definition* findPDinNewDes(stp_product_definition *pd, RoseDesign *des){
-	RoseCursor curse;
-	curse.traverse(des);
-	curse.domain(ROSE_DOMAIN(stp_product_definition));
-	if (curse.size() == 1){ return ROSE_CAST(stp_product_definition, curse.next()); }
-	else{
-		RoseObject * obj;
-		while (obj = curse.next()){
-
-		}
-	}
-}
-
 int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
@@ -921,10 +908,9 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 			PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 			RoseDesign * dst = pd->design(); //create pointer to design of new assembly
 			backToSource(pd->design(), src); //
-			newPD = findPDinNewDes(pd, dst);
 		}
 		//pd is an assembly and will be the source of nut and bolt
-		
+		std::cout << "newpd design: " << newPD->design() << std::endl;
 		// recurse to all subproducts, do this even if there is geometry
 		//change pd to its analog in assembly
 		pm = StixMgrAsmProduct::find(newPD);
