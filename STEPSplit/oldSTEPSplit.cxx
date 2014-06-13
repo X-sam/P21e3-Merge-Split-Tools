@@ -846,17 +846,21 @@ stp_product_definition * PutOut(stp_product_definition * prod, std::string dir){
 
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
+	ListOfRoseObject toCopy;
 
-	prod->move(ProdOut);
+	toCopy.add(prod);
+	//prod->move(ProdOut);
 	stp_product_definition * rt_val = prod;
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
 	while ((obj2 = objs.next()) != 0) {
 		if (stix_split_is_export(obj2)) {
-			obj2->move(ProdOut);
+			toCopy.add(obj2);
+			//obj2->move(ProdOut);
 		}
 	}
+	toCopy.copy(ProdOut, INT_MAX);
 	addRefAndAnchor(prod, ProdOut, src, dir);
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 
