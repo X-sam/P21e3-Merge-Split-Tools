@@ -789,8 +789,6 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 		handleEntity(obj, dir);
 	}
 	rose_mark_end();
-	//rose_compute_backptrs(source);
-	//rose_compute_backptrs(destination);//Update the backpointers to prevent usedin from having errors.
 	curse.traverse(destination);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
 	//std::cout << curse.size() << "\n";
@@ -823,10 +821,8 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	stix_split_clear_needed_and_ignore_trimmed(src);
 
 	RoseObject * obj = ROSE_CAST(RoseObject, prod);
-	//stp_product_definition_formation * prodf = prod->formation();
 	stp_product * p = prod->formation() ? prod->formation()->of_product() : 0;
 
-	stix_split_clear_needed_and_ignore_trimmed(src);
 	std::cout << "\nCREATING FILE FOR: " << p->name() << " from " << src->name() << std::endl;
 	if (!p) return NULL;	//No product so can't do things right?
 	std::string ProdOutName(p->name());
@@ -847,9 +843,7 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
-	//ListOfRoseObject * toCopy = pnew ListOfRoseObject;
 	stp_product_definition * rt_val;
-	//toCopy->add(prod); //copy prod over
 	prod->move(ProdOut);
 	rt_val = prod;
 	RoseCursor objs;
@@ -858,17 +852,12 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	int count = 0;
 	while ((obj2 = objs.next()) != 0) {
 		if (stix_split_is_export(obj2)) {
-			//toCopy->add(obj2);
 			obj2->move(ProdOut);
 			count++;
 		}
 	}
-
-	//toCopy->move(ProdOut, INT_MAX);
 	std::cout << "\nLIST MOVED " << count << " objects. rtval des in putout " << rt_val->design()->name() << std::endl;
-	addRefAndAnchor(prod, ProdOut, src, dir);
 	MakeReferencesAndAnchors(src, ProdOut, dir);
-	//rose_move_to_trash(toCopy);
 	ProdOut->save();
 	return ProdOut;
 }
@@ -919,28 +908,16 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
 		RoseDesign * subMaster;
-		if (outPD){
+		if (outPD){//might not need this bool check anymore
 
 			printf("IGNORING PD #%lu (assembly) %s\n",		pd->entity_id(), /*(p->name()) ? p->name() : "",*/ pd->domain()->name());
 			dir = makeDirforAssembly(pd, dir);
 			subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 			std::cout << "newpd design in IF statement: " << newPD->design()->name() << " \nsubmaster: " << subMaster->name() << std::endl;
-			//backToSource(pd->design(), src);
 			splitFromSubAssem(subMaster, dir);
 			std::cout << "Moving objects from " <<subMaster->name() << " back to source " << src->name() << std::endl;
 			backToSource(subMaster, src); //may be needed later
 		}
-		/*
-				//pd is an assembly and will be the source of nut and bolt
-		// recurse to all subproducts, do this even if there is geometry
-		//change pd to its analog in assembly
-		pm = StixMgrAsmProduct::find(newPD);
-		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
-			stix_split_delete_all_marks(newPD->design());
-			std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
-			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir, !outPD);
-		}
-		*/
 	}
 	else {
 		
@@ -975,13 +952,46 @@ int CountSubs(stp_product_definition * root){ //return the total count of subass
 	}
 	return subs;
 }
+///<summary>
+///this version of empty master must be called from a split function USING EVERY object in roots except for root as a value for prod.
+///</summary>
+int EmptyMaster(RoseDesign * master, stp_product_definition *prod){ 
+	RoseDesign * src = prod->design();
+	if (!(src == master)) { std::cout << "THIS strategy won't work" << std::endl; }
 
-int EmptyMaster(RoseDesign * master){
+	StixMgrSplitProduct * split_mgr = StixMgrSplitProduct::find(prod);
+	if (split_mgr) return NULL;   // already been exported
+
+	StixMgrAsmProduct * pd_mgr = StixMgrAsmProduct::find(prod);
+	if (!pd_mgr) return NULL;  // not a proper part
+
+	stix_split_clear_needed_and_ignore_trimmed(src);
+
+	tag_subassembly(prod);
+	tag_shape_annotation(src);
+	tag_step_extras(src);
+
+	// Move all of the objects that we need to export over to the
+	// destination design.   It does not care where aggregates are though.
+	RoseCursor objs;
+	RoseObject *obj;
+	objs.traverse(src);
+	objs.domain(ROSE_DOMAIN(RoseStructure));
+	int count = 0;
+	while ((obj = objs.next()) != 0) {
+		if (stix_split_is_export(obj)) {
+			rose_move_to_trash(obj);
+		}
+	}
+	rose_move_to_trash(prod);
+}
+
+/*
+int EmptyMaster(RoseDesign * master, stp_product_definition *root){
 	if (!master){ return 1; }
 	RoseCursor objs;
 	RoseObject * obj;
-	//traverse and mark assemblies with children that have geometry
-
+	
 	stix_split_clear_needed_and_ignore_trimmed(master); //remove any markings master may have
 
 	//mark master for the things we don't want
@@ -994,12 +1004,19 @@ int EmptyMaster(RoseDesign * master){
 	objs.traverse(master);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
 	while ((obj = objs.next()) != 0) {
-		if (!stix_split_is_export(obj)) { rose_move_to_trash(obj); }
+		if (!stix_split_is_export(obj)) { 
+			rose_move_to_trash(obj); 
+		}
+		else{
+			if (obj->domain() == root->domain()){
+				if (!rose_is_marked(obj)){ rose_move_to_trash(obj); }
+			}
+		}
 	}
-
+	//traverse master again this time checking for objects that exist as references as well
 	return 0;
 }
-
+*/
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a version of split thtat gets called from putouthelper to create 
 	//trees with multiple levels of references
 	if (!subMaster) { return 1; }
@@ -1012,7 +1029,6 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	StixMgrProperty::tag_design(subMaster);
 	StixMgrPropertyRep::tag_design(subMaster);
 	StixMgrSplitStatus::export_only_needed = 1;
-
 	std::cout << subMaster->name() << "has " << roots.size() << " roots." << std::endl;
 
 	unsigned tmp, mostSubs = 0;
@@ -1031,7 +1047,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	else{
 		// recurse to all subproducts, do this even if there is geometry
 		//change pd to its analog in assembly
-		if (mkDir) { dir = makeDirforAssembly(root, dir); }
+		if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
 		StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 			stix_split_delete_all_marks(root->design());
@@ -1039,16 +1055,19 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
 		}
 	}
-	EmptyMaster(subMaster); //remove geometry from master
-
+	rose_mark_begin(); 
+	rose_mark_set(root);
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		rose_move_to_trash(roots[i]);	//delete roots
+		if (roots[i] != root){ EmptyMaster(subMaster, roots[i]); } //remove geometry from master while keeping everything needed for root
 	}
-
+	rose_mark_end();
 	update_uri_forwarding(subMaster);
 	rose_release_backptrs(subMaster);
 
 	subMaster->save(); //save changes to master
+	for (i = 0, sz = roots.size(); i < sz; i++){ 
+		rose_move_to_trash(roots[i]);/*delete roots*/ 
+	}
 	rose_empty_trash();
 	return 0;
 }
@@ -1082,7 +1101,7 @@ int split(RoseDesign * master, std::string dir, bool outPD){ //outPD controls th
 	else{
 		PutOutHelper(root, dir); //only call putout from the assembly with the most sub-assemblies, this is the head/root assembly
 	}
-	EmptyMaster(master); //remove geometry from master
+	EmptyMaster(master, root); //remove geometry from master
 
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		rose_move_to_trash(roots[i]);	//delete roots
