@@ -27,7 +27,6 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 void backToSource(RoseDesign * ProdOut, RoseDesign * src);
 int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD = true);
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir = "", bool mkDir = false);
-int split(RoseDesign * master, std::string dir = "", bool outPD = true);
 
 //####################### markers/taggers ##########################
 
@@ -700,8 +699,10 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
-	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
-	std::cout << "ading anchor in " << ProdOut->name() << " for " << obj->design()->name() << std::endl;
+	anchor.append(std::to_string(obj->entity_id()));	//ex. "advanced_face_split_item123"
+	
+	//std::cout << "ading anchor in " << ProdOut->name() << " for " << obj->design()->name() << std::endl;
+	
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
@@ -840,9 +841,7 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
-	stp_product_definition * rt_val;
 	prod->move(ProdOut);
-	rt_val = prod;
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
@@ -853,14 +852,14 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 			count++;
 		}
 	}
-	std::cout << "\nLIST MOVED " << count << " objects. rtval des in putout " << rt_val->design()->name() << std::endl;
+	std::cout << "list moved " << count << " objects." << std::endl;
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 	ProdOut->save();
 	return ProdOut;
 }
 
 void backToSource(RoseDesign * ProdOut, RoseDesign * src){
-	//move back
+	std::cout << "\tMoving from all objects " << ProdOut->name() << " to " << src->name() << std::endl;
 	// Mark everything as having been exported for later use
 	stix_split_all_trimmed(ProdOut);
 	//--------------------------------------------------
@@ -898,26 +897,25 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
-
 	unsigned i, sz;
-	stp_product_definition * newPD = pd;
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
 		RoseDesign * subMaster;
-		if (outPD){//might not need this bool check anymore
-
-			printf("IGNORING PD #%lu (assembly) %s\n",		pd->entity_id(), /*(p->name()) ? p->name() : "",*/ pd->domain()->name());
-			dir = makeDirforAssembly(pd, dir);
-			subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
-			std::cout << "newpd design in IF statement: " << newPD->design()->name() << " \nsubmaster: " << subMaster->name() << std::endl;
+		dir = makeDirforAssembly(pd, dir);
+		std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
+		subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
+		std::cout << "\tpd design in IF statement: " << pd->design()->name() << " \n\tsubmaster: " << subMaster->name() << std::endl;
+		std::cout << "SPLITTING " << subMaster->name() << std::endl;
+		if (splitFromSubAssem(subMaster, dir) == 2){
+			std::cout << "rechecking " << subMaster->name() << " something went wrong" << std::endl;
+			subMaster->save();
 			splitFromSubAssem(subMaster, dir);
-			std::cout << "Moving objects from " <<subMaster->name() << " back to source " << src->name() << std::endl;
-			backToSource(subMaster, src); //may be needed later
 		}
+		std::cout << "\tMoving objects from " << subMaster->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
+		backToSource(subMaster, src); //may be needed later. definately needed
 	}
 	else {
-		
 		for (i = 0, sz = pm->shapes.size(); i < sz; i++) {
 			if (has_geometry(pm->shapes[i])) break;
 		}
@@ -925,7 +923,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 		// no shapes with real geometry
 		if (i < sz) {
 			RoseDesign * src = pd->design();
-			//printf("EXPORTING PD #%lu (%s)\n", pd->entity_id(), p->name() ? p->name() : "");
+			std::cout << "\t";
 			PutOut(pd, dir);
 			backToSource(pd->design(), src);
 		}
@@ -952,9 +950,14 @@ int CountSubs(stp_product_definition * root){ //return the total count of subass
 ///<summary>
 ///this version of empty master must be called from a split function USING EVERY object in roots except for root as a value for prod.
 ///</summary>
-int EmptyMaster(RoseDesign * master, stp_product_definition *prod){ 
+int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* dump){
 	RoseDesign * src = prod->design();
-	if (!(src == master)) { std::cout << "THIS strategy won't work" << std::endl; }
+	if (!src) { std::cout << "\nNo design in prod?" << std::endl; return 2; }
+	if (!prod){ return 1; }
+	if ((src != master)) { 
+		std::cout << "THIS has already been moved\n\t" << master->name() << std::endl;
+		return 2;
+	}
 
 	StixMgrSplitProduct * split_mgr = StixMgrSplitProduct::find(prod);
 	if (split_mgr) return NULL;   // already been exported
@@ -977,10 +980,11 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod){
 	int count = 0;
 	while ((obj = objs.next()) != 0) {
 		if (stix_split_is_export(obj)) {
-			rose_move_to_trash(obj);
+			obj->move(dump);
 		}
 	}
-	rose_move_to_trash(prod);
+	prod->move(dump);
+
 	return 0;
 }
 
@@ -988,6 +992,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	//trees with multiple levels of references
 	if (!subMaster) { return 1; }
 	unsigned int i, sz;
+	stix_split_clear_needed_and_ignore_trimmed(subMaster);
 	StpAsmProductDefVec roots;
 	stix_find_root_products(&roots, subMaster);
 	stp_product_definition * root;
@@ -1006,12 +1011,12 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 			root = roots[i];
 		}
 	}
-	if (sz == 0) { return 1; }
-	if (mostSubs == 1){
+	if (sz == 0) { 	return 2; } //no roots
+	/*if (mostSubs == 1){
 		std::cout << " all " << roots.size() << " assembly nodes are leaves" << std::endl; //what do
 		return 1;
 	}
-	else{
+	else{*/
 		// recurse to all subproducts, do this even if there is geometry
 		//change pd to its analog in assembly
 		if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
@@ -1021,21 +1026,27 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 			std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
 			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
 		}
-	}
+	//}
 	rose_mark_begin(); 
 	rose_mark_set(root);
+	RoseDesign* dump = pnew RoseDesign;
 	for (i = 0, sz = roots.size(); i < sz; i++){
-		if (roots[i] != root){ EmptyMaster(subMaster, roots[i]); } //remove geometry from master while keeping everything needed for root
+		if (roots[i] != root){ EmptyMaster(subMaster, roots[i], dump); } //remove geometry from master while keeping everything needed for root
 	}
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
 	rose_release_backptrs(subMaster);
 
-	subMaster->save(); //save changes to master
-	for (i = 0, sz = roots.size(); i < sz; i++){ 
-		rose_move_to_trash(roots[i]);/*delete roots*/ 
+	subMaster->save(); //save changes to submaster
+	//removed trashing roots
+	//after last save on subMaster, copy objects back to design encase data is used by other things as well.
+	RoseCursor curse;
+	curse.traverse(dump);
+	RoseObject* obj;
+	while (obj = curse.next()){
+		obj->move(subMaster);
 	}
-	rose_empty_trash();
+	rose_move_to_trash(dump);
 	return 0;
 }
 
