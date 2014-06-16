@@ -122,3 +122,11 @@ MyURIManager * MyURIManager::make(RoseObject * obj)
 	}
 	return mgr;
 }
+
+
+ROSE_IMPLEMENT_MANAGER_COMMON(MyPDManager);
+
+MyPDManager * MyPDManager::find(stp_next_assembly_usage_occurrence * nauo)
+{
+	return (MyPDManager*)(nauo ? nauo->find_manager(type()) : 0);
+}

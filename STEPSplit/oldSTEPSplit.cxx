@@ -700,9 +700,7 @@ void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
 	anchor.append(std::to_string(obj->entity_id()));	//ex. "advanced_face_split_item123"
-	
-	//std::cout << "ading anchor in " << ProdOut->name() << " for " << obj->design()->name() << std::endl;
-	
+
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
@@ -730,6 +728,12 @@ void handleEntity(RoseObject * obj, std::string dir)
 		if (att->isEntity())	//Easy mode. attribute is an entity so it will be a single roseobject.
 		{
 			childobj = obj->getObject(att);
+			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
+				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
+					//test
+				}
+			}
+			
 		}
 		else if (att->isSelect())	//Oh boy, a select. Get the contents. It might make childobj null, we'll check for that in a minute.
 		{
@@ -745,6 +749,7 @@ void handleEntity(RoseObject * obj, std::string dir)
 		{
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
+			std::cout << "\tAdding ref for " << obj->domain()->name() << " in " << childobj->design()->name() << std::endl;
 			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
 		}
 	}
@@ -773,6 +778,7 @@ void handleAggregate(RoseObject * obj, std::string dir)
 		{
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
+			std::cout << "\tAdding ref for " << obj->domain()->name() << " in " << childobj->design()->name() << std::endl;
 			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
 		}
 	}
@@ -785,8 +791,13 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	RoseCursor curse;
 	curse.traverse(source);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//We are only interested in actual entities, so we set our domain to that.
+	bool prodref = true;
 	while (obj = curse.next())
 	{
+		if (obj->domain() == ROSE_DOMAIN(stp_product_definition) && prodref)	{
+			handleEntity(obj, dir);
+			prodref = false;
+		}
 		handleEntity(obj, dir);
 	}
 	rose_mark_end();
@@ -799,6 +810,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 		obj->usedin(NULL, NULL, &Parents);
 		if (Parents.size() == 0)// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
 		{
+			std::cout << "\tAdding ref for " << obj->domain()->name() << " in " << destination->name() << std::endl;
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
 	}
@@ -875,7 +887,6 @@ void backToSource(RoseDesign * ProdOut, RoseDesign * src){
 		// Ignore temporaries created for the split
 		if (!StixMgrSplitTmpObj::find(obj2)) obj2->move(src);
 	}
-
 }
 
 std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
@@ -895,9 +906,19 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 }
 
 int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
+	unsigned i, sz;
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
-	unsigned i, sz;
+
+	//get nauo for pd and create a manager that will store a pointer to pd's design. only add ref if design and pd->design match on call to makerefandanchor
+	ListOfRoseObject Nauos;
+	stp_next_assembly_usage_occurrence *pd_nauo;
+	pd->usedin(ROSE_DOMAIN(stp_next_assembly_usage_occurrence), NULL, &Nauos);
+	MyPDManager * mgr;
+	for (i = 0, sz = Nauos.size(); i < sz; i++){
+		mgr = MyPDManager::find(Nauos[i]);
+		if()
+	}
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
@@ -954,7 +975,7 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 	RoseDesign * src = prod->design();
 	if (!src) { std::cout << "\nNo design in prod?" << std::endl; return 2; }
 	if (!prod){ return 1; }
-	if ((src != master)) { 
+	if ((src != master)) {
 		std::cout << "THIS has already been moved\n\t" << master->name() << std::endl;
 		return 2;
 	}
@@ -972,7 +993,7 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 	tag_step_extras(src);
 
 	// Move all of the objects that we need to export over to the
-	// destination design.   It does not care where aggregates are though.
+	// destination design. It does not care where aggregates are though.
 	RoseCursor objs;
 	RoseObject *obj;
 	objs.traverse(src);
@@ -981,8 +1002,10 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 	while ((obj = objs.next()) != 0) {
 		if (stix_split_is_export(obj)) {
 			obj->move(dump);
+			count++;
 		}
 	}
+	std::cout << count << " objects removed from " << master->name() << std::endl;
 	prod->move(dump);
 
 	return 0;
@@ -1001,45 +1024,48 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	StixMgrProperty::tag_design(subMaster);
 	StixMgrPropertyRep::tag_design(subMaster);
 	StixMgrSplitStatus::export_only_needed = 1;
-	std::cout << subMaster->name() << "has " << roots.size() << " roots." << std::endl;
+	std::cout << "\t" << subMaster->name() << "has " << roots.size() << " roots." << std::endl;
 
 	unsigned tmp, mostSubs = 0;
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		tmp = CountSubs(roots[i]);
-		if (tmp > mostSubs){ 
-			mostSubs = tmp; 
+		std::cout << "\t" << roots[i]->domain()->name() << " has " << tmp << " subassemblies" << std::endl;
+		if (tmp > mostSubs){
+			mostSubs = tmp;
 			root = roots[i];
 		}
 	}
-	if (sz == 0) { 	return 2; } //no roots
+	if (sz == 0) { return 2; } //no roots
 	/*if (mostSubs == 1){
 		std::cout << " all " << roots.size() << " assembly nodes are leaves" << std::endl; //what do
 		return 1;
-	}
-	else{*/
-		// recurse to all subproducts, do this even if there is geometry
-		//change pd to its analog in assembly
-		if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
-		StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
-		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
-			stix_split_delete_all_marks(root->design());
-			std::cout << "subassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
-			PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
 		}
+		else{*/
+	// recurse to all subproducts, do this even if there is geometry
+	//change pd to its analog in assembly
+	if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
+	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
+	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
+		stix_split_delete_all_marks(root->design());
+		std::cout << "\tsubassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
+		PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
+	}
 	//}
-	rose_mark_begin(); 
+	rose_mark_begin();
 	rose_mark_set(root);
 	RoseDesign* dump = pnew RoseDesign;
+	std::cout << "Removing Objects from " << subMaster->name() << " NOW." << std::endl;
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		if (roots[i] != root){ EmptyMaster(subMaster, roots[i], dump); } //remove geometry from master while keeping everything needed for root
 	}
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
-	rose_release_backptrs(subMaster);
 
 	subMaster->save(); //save changes to submaster
+	ARMsave(subMaster);
+	rose_release_backptrs(subMaster);
 	//removed trashing roots
-	//after last save on subMaster, copy objects back to design encase data is used by other things as well.
+	//after last save on subMaster, copy objects back to design so that it can be moved back to subMaster's parent
 	RoseCursor curse;
 	curse.traverse(dump);
 	RoseObject* obj;

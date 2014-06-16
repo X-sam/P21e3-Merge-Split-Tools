@@ -22,4 +22,18 @@ public:
 
 void update_uri_forwarding(RoseDesign * design);
 
+
+class MyPDManager : public RoseManager{
+public:
+	RoseDesign* childDes;
+	stp_product_definition* childPD;
+
+	MyPDManager() { childPD = NULL; childDes = NULL; }
+
+	static MyPDManager * find(stp_next_assembly_usage_occurrence * nauo)
+
+	ROSE_DECLARE_MANAGER_COMMON();
+};
+
+
 #endif
