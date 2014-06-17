@@ -24,11 +24,16 @@ void update_uri_forwarding(RoseDesign * design);
 
 
 class MyPDManager : public RoseManager{
+private:
+	RoseDesign*						childDes;
+	stp_product_definition*			childPD;
+	RoseReference*					real_ref = NULL;
 public:
-	RoseDesign* childDes;
-	stp_product_definition* childPD;
 
 	ROSE_DECLARE_MANAGER_COMMON();
+
+	void setRef(RoseReference * r)		{ real_ref = r; }
+	RoseReference * should_point_to()	{ return real_ref; }
 
 	void hasChild(stp_product_definition * c)	{ childPD = c; }
 	void hasChildIn(RoseDesign * d)	{ childDes = d; }
