@@ -725,22 +725,18 @@ void handleEntity(RoseObject * obj, std::string dir)
 	{
 		RoseAttribute *att = atts->get(i);
 		RoseObject * childobj = 0;
-		if (att->isEntity())	//Easy mode. attribute is an entity so it will be a single roseobject.
-		{
+		if (att->isEntity()){	//Easy mode. attribute is an entity so it will be a single roseobject.
 			childobj = obj->getObject(att);
 		}
-		else if (att->isSelect())	//Oh boy, a select. Get the contents. It might make childobj null, we'll check for that in a minute.
-		{
+		else if (att->isSelect()){	//Oh boy, a select. Get the contents. It might make childobj null, we'll check for that in a minute.
 			childobj = rose_get_nested_object(ROSE_CAST(RoseUnion, obj->getObject(att)));
 		}
-		if (att->isAggregate())	//An aggregate! We have a whole function dedicated to this case.
-		{
+		if (att->isAggregate()){	//An aggregate! We have a whole function dedicated to this case.
 			handleAggregate(obj->getObject(att), dir);
 			continue;				//handleAggregate manages everything so we can just skip the next bits and move on to the next attribute.
 		}
 		if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
-		if (childobj->design() != obj->design() && !rose_is_marked(childobj))	//If this all is true, time to create a reference/anchor pair and mark childobj
-		{
+		if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
 			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
 				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
 					MyPDManager * mgr = MyPDManager::find(obj);
@@ -916,7 +912,7 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 }
 
 int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
-	unsigned i, sz;
+	unsigned i, sz; std::string use;
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
 
@@ -953,10 +949,7 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 		}
 		std::cout << "\tMoving objects from " << subMaster->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(subMaster, src); //may be needed later. definately needed
-		std::string use; use = dir + "/" + subMaster->name() + ".stp";
-		subMaster = ROSE.useDesign(use.c_str());
-		mgr->hasChildIn(subMaster);
-	}
+	}	
 	else {
 		for (i = 0, sz = pm->shapes.size(); i < sz; i++) {
 			if (has_geometry(pm->shapes[i])) break;
@@ -968,11 +961,13 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 			std::cout << "\t";
 			RoseDesign * tmp = PutOut(pd, dir);
 			mgr->hasChild(pd);
+
 			std::string use; use = dir + "/" + std::string(tmp->name()) + ".stp";
 			backToSource(pd->design(), src);
 			std::cout << use << std::endl;
 			tmp = ROSE.useDesign(use.c_str());
 			mgr->hasChildIn(tmp);
+			
 			RoseCursor c; 
 			c.traverse(mgr->childDes);
 			std::cout << c.size() << " ";
@@ -1041,6 +1036,15 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 	return 0;
 }
 
+void removeAllReferences(RoseDesign * des){
+	RoseCursor curse;
+	curse.traverse(des);
+	RoseObject * obj;
+	while (obj = curse.next()){
+		obj->remove_manager(RoseRefUsageManager::type());
+	}
+}
+
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a version of split thtat gets called from putouthelper to create 
 	//trees with multiple levels of references
 	if (!subMaster) { return 1; }
@@ -1054,6 +1058,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	StixMgrProperty::tag_design(subMaster);
 	StixMgrPropertyRep::tag_design(subMaster);
 	StixMgrSplitStatus::export_only_needed = 1;
+
 	std::cout << "\t" << subMaster->name() << "has " << roots.size() << " roots." << std::endl;
 
 	unsigned tmp, mostSubs = 0;
@@ -1073,6 +1078,8 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 		stix_split_delete_all_marks(root->design());
 		PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
+		update_uri_forwarding(subMaster);
+		removeAllReferences(subMaster);
 	}
 	rose_mark_begin();
 	rose_mark_set(root);

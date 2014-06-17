@@ -28,6 +28,8 @@ public:
 	RoseDesign* childDes;
 	stp_product_definition* childPD;
 
+	ROSE_DECLARE_MANAGER_COMMON();
+
 	void hasChild(stp_product_definition * c)	{ childPD = c; }
 	void hasChildIn(RoseDesign * d)	{ childDes = d; }
 
@@ -35,8 +37,6 @@ public:
 
 	static MyPDManager * find(RoseObject * nauo);
 	static MyPDManager * make(RoseObject *);
-
-	ROSE_DECLARE_MANAGER_COMMON();
 };
 
 
