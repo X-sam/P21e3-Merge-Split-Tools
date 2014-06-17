@@ -1108,6 +1108,11 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 
 int main(int argc, char* argv[])
 {
+	if (argc < 2){
+		std::cout << "Usage: .\\STEPSplit.exe filetosplit.stp\n" << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product" << std::endl;
+		return EXIT_FAILURE;
+	}
+	ROSE.quiet(1);	//Suppress startup info.
 	stplib_init();	// initialize merged cad library
 	//    rose_p28_init();	// support xml read/write
 	FILE *out;
@@ -1115,13 +1120,13 @@ int main(int argc, char* argv[])
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	/* Create a RoseDesign to hold the output data*/
-	if (argc < 2){
-		std::cout << "Usage: .\\STEPSplit.exe filetosplit.stp\n" << "\tCreates new file SplitOutput.stp as master step file with seperate files for each product" << std::endl;
+	std::string infilename(argv[1]);
+	if (!rose_file_exists(infilename.c_str()));
+	{
+		std::cout << "Error finding input file." << std::endl;
 		return EXIT_FAILURE;
 	}
-	std::string infilename = argv[1];
-
-	RoseDesign * origional = ROSE.useDesign(argv[1]);
+	RoseDesign * origional = ROSE.useDesign(infilename.c_str());
 	std::string dir = "out";
 	rose_mkdir(dir.c_str());
 	origional->fileDirectory(dir.c_str());
