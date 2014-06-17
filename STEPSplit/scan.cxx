@@ -126,7 +126,17 @@ MyURIManager * MyURIManager::make(RoseObject * obj)
 
 ROSE_IMPLEMENT_MANAGER_COMMON(MyPDManager);
 
-MyPDManager * MyPDManager::find(stp_next_assembly_usage_occurrence * nauo)
+MyPDManager * MyPDManager::find(RoseObject * nauo)
 {
 	return (MyPDManager*)(nauo ? nauo->find_manager(type()) : 0);
+}
+
+MyPDManager * MyPDManager::make(RoseObject * obj)
+{
+	MyPDManager* mgr = MyPDManager::find(obj);
+	if (!mgr) {
+		mgr = new MyPDManager;
+		obj->add_manager(mgr);
+	}
+	return mgr;
 }

@@ -728,12 +728,6 @@ void handleEntity(RoseObject * obj, std::string dir)
 		if (att->isEntity())	//Easy mode. attribute is an entity so it will be a single roseobject.
 		{
 			childobj = obj->getObject(att);
-			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
-				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
-					//test
-				}
-			}
-			
 		}
 		else if (att->isSelect())	//Oh boy, a select. Get the contents. It might make childobj null, we'll check for that in a minute.
 		{
@@ -747,6 +741,18 @@ void handleEntity(RoseObject * obj, std::string dir)
 		if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj))	//If this all is true, time to create a reference/anchor pair and mark childobj
 		{
+			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
+				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
+					MyPDManager * mgr = MyPDManager::find(obj);
+					if (mgr->childDes){ 
+						std::cout << "Manager Stuff: " << mgr->childDes->name() << ", " << childobj->design()->name() << std::endl; 
+						RoseCursor curse;
+						curse.traverse(mgr->childDes);
+						std::cout << curse.size();
+						return;
+					}
+				}
+			}
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
 			std::cout << "\tAdding ref for " << obj->domain()->name() << " in " << childobj->design()->name() << std::endl;
@@ -853,17 +859,21 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
-	prod->move(ProdOut);
+	ListOfRoseObject forProdOut;
+	//prod->move(ProdOut);
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
 	int count = 0;
 	while ((obj2 = objs.next()) != 0) {
 		if (stix_split_is_export(obj2)) {
-			obj2->move(ProdOut);
+			forProdOut.add(obj2);
+			//obj2->move(ProdOut);
 			count++;
 		}
+	
 	}
+	forProdOut.move(ProdOut, INT_MAX);
 	std::cout << "list moved " << count << " objects." << std::endl;
 	MakeReferencesAndAnchors(src, ProdOut, dir);
 	ProdOut->save();
@@ -913,11 +923,17 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 	//get nauo for pd and create a manager that will store a pointer to pd's design. only add ref if design and pd->design match on call to makerefandanchor
 	ListOfRoseObject Nauos;
 	stp_next_assembly_usage_occurrence *pd_nauo;
-	pd->usedin(ROSE_DOMAIN(stp_next_assembly_usage_occurrence), NULL, &Nauos);
+	pd->usedin(ROSE_DOMAIN(stp_next_assembly_usage_occurrence), NULL, &Nauos); //find nauos that pd is a child of
 	MyPDManager * mgr;
 	for (i = 0, sz = Nauos.size(); i < sz; i++){
 		mgr = MyPDManager::find(Nauos[i]);
-		if()
+		if (!mgr){ //if this object does not have a manager set
+			std::cout << "Nauo for pd: " << Nauos[i]->domain()->name() << std::endl;
+			mgr = MyPDManager::make(Nauos[i]);
+			break;
+		}
+		else{ continue; }
+		break;
 	}
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
@@ -926,6 +942,8 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 		dir = makeDirforAssembly(pd, dir);
 		std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
 		subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
+		mgr->hasChild(pd);
+		std::cout << "mgr has child design: " << mgr->childDes->name() << std::endl;
 		std::cout << "\tpd design in IF statement: " << pd->design()->name() << " \n\tsubmaster: " << subMaster->name() << std::endl;
 		std::cout << "SPLITTING " << subMaster->name() << std::endl;
 		if (splitFromSubAssem(subMaster, dir) == 2){
@@ -935,6 +953,9 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 		}
 		std::cout << "\tMoving objects from " << subMaster->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(subMaster, src); //may be needed later. definately needed
+		std::string use; use = dir + "/" + subMaster->name() + ".stp";
+		subMaster = ROSE.useDesign(use.c_str());
+		mgr->hasChildIn(subMaster);
 	}
 	else {
 		for (i = 0, sz = pm->shapes.size(); i < sz; i++) {
@@ -945,11 +966,20 @@ int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
 		if (i < sz) {
 			RoseDesign * src = pd->design();
 			std::cout << "\t";
-			PutOut(pd, dir);
+			RoseDesign * tmp = PutOut(pd, dir);
+			mgr->hasChild(pd);
+			std::string use; use = dir + "/" + std::string(tmp->name()) + ".stp";
 			backToSource(pd->design(), src);
+			std::cout << use << std::endl;
+			tmp = ROSE.useDesign(use.c_str());
+			mgr->hasChildIn(tmp);
+			RoseCursor c; 
+			c.traverse(mgr->childDes);
+			std::cout << c.size() << " ";
+			c.traverse(tmp);
+			std::cout << c.size();
 		}
 		else {
-			//printf("IGNORING PD #%lu (%s) (no geometry)\n", pd->entity_id(), p->name() ? p->name() : "");
 			return 0;
 		}
 	}
@@ -1036,21 +1066,14 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 		}
 	}
 	if (sz == 0) { return 2; } //no roots
-	/*if (mostSubs == 1){
-		std::cout << " all " << roots.size() << " assembly nodes are leaves" << std::endl; //what do
-		return 1;
-		}
-		else{*/
 	// recurse to all subproducts, do this even if there is geometry
 	//change pd to its analog in assembly
 	if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 		stix_split_delete_all_marks(root->design());
-		std::cout << "\tsubassems " << stix_get_related_pdef(pm->child_nauos[i])->design()->name() << std::endl;
 		PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
 	}
-	//}
 	rose_mark_begin();
 	rose_mark_set(root);
 	RoseDesign* dump = pnew RoseDesign;

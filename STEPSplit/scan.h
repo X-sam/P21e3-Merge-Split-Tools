@@ -28,9 +28,13 @@ public:
 	RoseDesign* childDes;
 	stp_product_definition* childPD;
 
+	void hasChild(stp_product_definition * c)	{ childPD = c; }
+	void hasChildIn(RoseDesign * d)	{ childDes = d; }
+
 	MyPDManager() { childPD = NULL; childDes = NULL; }
 
-	static MyPDManager * find(stp_next_assembly_usage_occurrence * nauo)
+	static MyPDManager * find(RoseObject * nauo);
+	static MyPDManager * make(RoseObject *);
 
 	ROSE_DECLARE_MANAGER_COMMON();
 };
