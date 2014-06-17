@@ -1121,9 +1121,13 @@ int main(int argc, char* argv[])
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	/* Create a RoseDesign to hold the output data*/
 	std::string infilename(argv[1]);
-	if (!rose_file_exists(infilename.c_str()));
+	if (NULL==rose_dirname(infilename.c_str()))
 	{
-		std::cout << "Error finding input file." << std::endl;
+		infilename = ".\\" + infilename;
+	}
+	if (!rose_file_readable(infilename.c_str()))
+	{
+		std::cout << "Error reading input file." << std::endl;
 		return EXIT_FAILURE;
 	}
 	RoseDesign * origional = ROSE.useDesign(infilename.c_str());
