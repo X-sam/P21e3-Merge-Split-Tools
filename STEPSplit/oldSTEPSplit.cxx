@@ -740,17 +740,16 @@ void handleEntity(RoseObject * obj, std::string dir)
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
 			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
 				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
-					if (!rose_is_marked(obj->design())){
+					if (!rose_is_marked(obj->design())){ //prevent a design from being referenced by more than one nauo
 						MyPDManager * mgr = MyPDManager::make(obj);
-						if (!mgr->should_point_to()){
-							std::cout << "\tAdding ref to " << childobj->domain()->name() << " from " << obj->domain()->name() << std::endl;
+						if (!mgr->should_point_to()){ //prevent old managers from being used
 							rose_mark_set(obj->design());
-							mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir));
-							rose_put_ref(mgr->should_point_to(), obj, "related_product_definition");
+							mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir)); //save the reference used by addref&anchor
 							return;
 						}
 						else{ return; }
 					}
+					else{ return; }
 				}
 			}
 			rose_mark_set(childobj);
