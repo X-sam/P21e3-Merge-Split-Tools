@@ -25,7 +25,7 @@ void handleEntity(RoseObject * obj, std::string dir = "");
 void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir = "");
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 void backToSource(RoseDesign * ProdOut, RoseDesign * src);
-int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD = true);
+int PutOutHelper(stp_next_assembly_usage_occurrence * nauo, std::string dir = "", bool outPD = true);
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir = "", bool mkDir = false);
 
 //####################### markers/taggers ##########################
@@ -715,6 +715,7 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	ref->resolved(obj);	//Reference is resolved to the object that we passed in, which is currently residing in the ProdOut design.
 	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
 	URIManager = MyURIManager::make(obj);
+	URIManager->should_go_in_des(obj->design());
 	URIManager->should_go_to_uri(ref);
 	return ref;
 }
@@ -778,8 +779,21 @@ void handleAggregate(RoseObject * obj, std::string dir)
 			handleAggregate(childobj, dir);	//NESTED AGGREGATES! Call ourself on it.
 			continue;
 		}
+		//std::cout << obj->entity_id() << obj->domain()->name() << "\n\t" << childobj->entity_id() << childobj->domain()->name() << std::endl;
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj))	//If we got here we've got an external reference which needs a reference/anchor pair and a marking.
 		{
+			if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship)){
+				if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
+					//if (!rose_is_marked(childobj->design())){
+					MyPDManager * mgr = MyPDManager::make(obj);
+					if (!mgr->should_point_to()){
+						mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir));
+						return;
+					}
+					//}
+					else{ return; }
+				}
+			}
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
 			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
@@ -794,13 +808,8 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	RoseCursor curse;
 	curse.traverse(source);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//We are only interested in actual entities, so we set our domain to that.
-	bool prodref = true;
 	while (obj = curse.next())
 	{
-		if (obj->domain() == ROSE_DOMAIN(stp_product_definition) && prodref)	{
-			handleEntity(obj, dir);
-			prodref = false;
-		}
 		handleEntity(obj, dir);
 	}
 	rose_mark_end();
@@ -912,7 +921,10 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	return dir;
 }
 
-int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
+int PutOutHelper(stp_next_assembly_usage_occurrence * nauo, std::string dir, bool outPD){
+
+	stp_product_definition * pd = stix_get_related_pdef(nauo);
+
 	unsigned i, sz; std::string use;
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
@@ -1038,8 +1050,20 @@ void resolve_pd_refs(RoseDesign * des){
 	RoseObject * obj;
 	while (obj = curse.next()){
 		MyPDManager * mgr = MyPDManager::find(obj);
-		if (mgr->should_point_to()){
-			rose_put_ref(mgr->should_point_to(), obj, "related_product_definition");
+		if (mgr){
+			if (mgr->should_point_to()){
+				rose_put_ref(mgr->should_point_to(), obj, "related_product_definition");
+			}
+		}
+	}
+	curse.traverse(des);
+	curse.domain(ROSE_DOMAIN(stp_representation_relationship));
+	while (obj = curse.next()){
+		MyPDManager * mgr = MyPDManager::find(obj);
+		if (mgr){
+			if (mgr->should_point_to()){
+				rose_put_ref(mgr->should_point_to(), obj, "rep_1");
+			}
 		}
 	}
 }
@@ -1075,8 +1099,9 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
+		std::cout << pm->child_nauos[i]->domain()->name() << "\n";
 		stix_split_delete_all_marks(root->design());
-		PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
+		PutOutHelper(pm->child_nauos[i], dir); //stix_get_related_pdef(pm->child_nauos[i])
 		update_uri_forwarding(subMaster);
 		removeAllReferences(subMaster);
 	}
