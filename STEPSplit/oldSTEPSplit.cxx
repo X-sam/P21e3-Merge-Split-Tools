@@ -739,20 +739,6 @@ void handleEntity(RoseObject * obj, std::string dir)
 		}
 		if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
-			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
-				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
-					if (!rose_is_marked(obj->design())){ //prevent a design from being referenced by more than one nauo
-						MyPDManager * mgr = MyPDManager::make(obj);
-						if (!mgr->should_point_to()){ //prevent old managers from being used
-							rose_mark_set(obj->design());
-							mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir)); //save the reference used by addref&anchor
-							return;
-						}
-						else{ return; }
-					}
-					else{ return; }
-				}
-			}
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
 			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
@@ -908,8 +894,8 @@ void backToSource(RoseDesign * ProdOut, RoseDesign * src){
 std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	stp_product_definition_formation * pdf = pd->formation();
 	stp_product * p = pdf ? pdf->of_product() : 0;
-	std::string name = p->name();
-	name = SafeName(name);
+	if (!p)return NULL;
+	std::string name = SafeName(p->name());
 
 	dir.push_back('/');
 	dir.append(SafeName(name));
@@ -921,10 +907,8 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	return dir;
 }
 
-int PutOutHelper(stp_next_assembly_usage_occurrence * nauo, std::string dir, bool outPD){
-
+int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool outPD){
 	stp_product_definition * pd = stix_get_related_pdef(nauo);
-
 	unsigned i, sz; std::string use;
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
@@ -1042,7 +1026,7 @@ void removeAllReferences(RoseDesign * des){
 		obj->remove_manager(RoseRefUsageManager::type());
 	}
 }
-
+/*
 void resolve_pd_refs(RoseDesign * des){
 	RoseCursor curse;
 	curse.traverse(des);
@@ -1066,7 +1050,7 @@ void resolve_pd_refs(RoseDesign * des){
 			}
 		}
 	}
-}
+}*/
 
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a version of split thtat gets called from putouthelper to create 
 	//trees with multiple levels of references
@@ -1101,9 +1085,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 		std::cout << pm->child_nauos[i]->domain()->name() << "\n";
 		stix_split_delete_all_marks(root->design());
-		PutOutHelper(pm->child_nauos[i], dir); //stix_get_related_pdef(pm->child_nauos[i])
-		update_uri_forwarding(subMaster);
-		removeAllReferences(subMaster);
+		PutOutHelper(pm->child_nauos[i], dir);
 	}
 	rose_mark_begin();
 	rose_mark_set(root);
@@ -1114,7 +1096,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	}
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
-	resolve_pd_refs(subMaster);
+	//resolve_pd_refs(subMaster);
 
 	subMaster->save(); //save changes to submaster
 	ARMsave(subMaster);
@@ -1146,11 +1128,11 @@ int main(int argc, char* argv[])
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	/* Create a RoseDesign to hold the output data*/
 	std::string infilename(argv[1]);
-	if (NULL==rose_dirname(infilename.c_str()))
+	if (NULL==rose_dirname(infilename.c_str()))	//Check if there's already a path on the input file. If not, add '.\' AKA the local directory.
 	{
 		infilename = ".\\" + infilename;
 	}
-	if (!rose_file_readable(infilename.c_str()))
+	if (!rose_file_readable(infilename.c_str()))	//Make sure file is readable before we open it.
 	{
 		std::cout << "Error reading input file." << std::endl;
 		return EXIT_FAILURE;
