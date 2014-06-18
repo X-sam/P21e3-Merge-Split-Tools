@@ -25,7 +25,7 @@ void handleEntity(RoseObject * obj, std::string dir = "");
 void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir = "");
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 void backToSource(RoseDesign * ProdOut, RoseDesign * src);
-int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD = true);
+int PutOutHelper(stp_next_assembly_usage_occurrence * nauo, std::string dir, bool outPD = true);
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir = "", bool mkDir = false);
 
 //####################### markers/taggers ##########################
