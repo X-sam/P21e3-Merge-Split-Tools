@@ -35,8 +35,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="oldSTEPSplit.cxx" />
     <ClCompile Include="scan.cxx" />
-    <ClCompile Include="STEPSplit.cxx" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="scan.h" />
@@ -50,7 +50,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <ConfigurationType>Application</ConfigurationType>
@@ -116,15 +116,18 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)\stix;$(ROSE_INCLUDE)\stpcad</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stix;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpcad;$(ROSE_INCLUDE)/stpcad_arm</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ROSE)\lib\i86_win32_vc11_md</AdditionalLibraryDirectories>
-      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpcad_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
     </Link>
+    <BuildLog>
+      <Path>C:\tmp\$(MSBuildProjectName).log</Path>
+    </BuildLog>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <ClCompile>
@@ -133,13 +136,13 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)\stpcad</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stix;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpcad;$(ROSE_INCLUDE)/stpcad_arm</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ROSE)\lib\x64_win64_vc12_md</AdditionalLibraryDirectories>
-      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpcad_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
     </Link>
   </ItemDefinitionGroup>
