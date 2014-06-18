@@ -22,7 +22,7 @@ public:
 
 void update_uri_forwarding(RoseDesign * design);
 
-
+/*
 class MyPDManager : public RoseManager{
 private:
 	RoseDesign*						childDes;
@@ -38,11 +38,11 @@ public:
 	void hasChild(stp_product_definition * c)	{ childPD = c; }
 	void hasChildIn(RoseDesign * d)	{ childDes = d; }
 
-	MyPDManager() { childPD = NULL; childDes = NULL; real_ref = NULL;}
+	MyPDManager() { childPD = NULL; childDes = NULL; real_ref = NULL; }
 
 	static MyPDManager * find(RoseObject * nauo);
-	static MyPDManager * make(RoseObject *);
 };
 
-
+MyPDManager * MakePDManager(RoseObject *);
+*/
 #endif

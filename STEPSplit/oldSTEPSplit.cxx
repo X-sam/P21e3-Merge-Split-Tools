@@ -738,20 +738,6 @@ void handleEntity(RoseObject * obj, std::string dir)
 		}
 		if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
-			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
-				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
-					if (!rose_is_marked(obj->design())){ //prevent a design from being referenced by more than one nauo
-						MyPDManager * mgr = MyPDManager::make(obj);
-						if (!mgr->should_point_to()){ //prevent old managers from being used
-							rose_mark_set(obj->design());
-							mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir)); //save the reference used by addref&anchor
-							return;
-						}
-						else{ return; }
-					}
-					else{ return; }
-				}
-			}
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
 			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
@@ -1030,7 +1016,7 @@ void removeAllReferences(RoseDesign * des){
 		obj->remove_manager(RoseRefUsageManager::type());
 	}
 }
-
+/*
 void resolve_pd_refs(RoseDesign * des){
 	RoseCursor curse;
 	curse.traverse(des);
@@ -1042,7 +1028,7 @@ void resolve_pd_refs(RoseDesign * des){
 			rose_put_ref(mgr->should_point_to(), obj, "related_product_definition");
 		}
 	}
-}
+}*/
 
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a version of split thtat gets called from putouthelper to create 
 	//trees with multiple levels of references
@@ -1089,7 +1075,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	}
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
-	resolve_pd_refs(subMaster);
+	//resolve_pd_refs(subMaster);
 
 	subMaster->save(); //save changes to submaster
 	ARMsave(subMaster);
@@ -1121,11 +1107,11 @@ int main(int argc, char* argv[])
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	/* Create a RoseDesign to hold the output data*/
 	std::string infilename(argv[1]);
-	if (NULL==rose_dirname(infilename.c_str()))
+	if (NULL==rose_dirname(infilename.c_str()))	//Check if there's already a path on the input file. If not, add '.\' AKA the local directory.
 	{
 		infilename = ".\\" + infilename;
 	}
-	if (!rose_file_readable(infilename.c_str()))
+	if (!rose_file_readable(infilename.c_str()))	//Make sure file is readable before we open it.
 	{
 		std::cout << "Error reading input file." << std::endl;
 		return EXIT_FAILURE;
