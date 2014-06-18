@@ -7,7 +7,7 @@
 class MyURIManager : public RoseManager {
 protected:
 	RoseReference * 	f_ref;
-	RoseDesign *		ref_des;
+	RoseReference *		real_ref;
 
 public:
 	MyURIManager() : f_ref(0) {}
@@ -15,9 +15,10 @@ public:
 	ROSE_DECLARE_MANAGER_COMMON();
 
 	RoseReference * should_go_to_uri()			{ return f_ref; }
-	RoseDesign * should_go_in_des()				{ return ref_des; }
 	void should_go_to_uri(RoseReference * r)		{ f_ref = r; }
-	void should_go_in_des(RoseDesign * d)			{ ref_des = d; }
+	
+	RoseReference * should_point_to()				{ return real_ref; }
+	void should_point_to(RoseReference * d)			{ real_ref = d; }
 
 	static MyURIManager * find(RoseObject *);
 	static MyURIManager * make(RoseObject *);
