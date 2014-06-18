@@ -885,8 +885,8 @@ void backToSource(RoseDesign * ProdOut, RoseDesign * src){
 std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	stp_product_definition_formation * pdf = pd->formation();
 	stp_product * p = pdf ? pdf->of_product() : 0;
-	std::string name = p->name();
-	name = SafeName(name);
+	if (!p)return NULL;
+	std::string name = SafeName(p->name());
 
 	dir.push_back('/');
 	dir.append(SafeName(name));
@@ -898,7 +898,8 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	return dir;
 }
 
-int PutOutHelper(stp_product_definition * pd, std::string dir, bool outPD){
+int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool outPD){
+	stp_product_definition * pd = stix_get_related_pdef(nauo);
 	unsigned i, sz; std::string use;
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
@@ -1062,9 +1063,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 		stix_split_delete_all_marks(root->design());
-		PutOutHelper(stix_get_related_pdef(pm->child_nauos[i]), dir);
-		update_uri_forwarding(subMaster);
-		removeAllReferences(subMaster);
+		PutOutHelper(pm->child_nauos[i], dir);
 	}
 	rose_mark_begin();
 	rose_mark_set(root);
