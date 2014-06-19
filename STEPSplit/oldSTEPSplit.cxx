@@ -679,17 +679,13 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 {
 	RoseAttribute * Att;
 	ListOfRoseAttribute * attributes = Attributer->attributes();
-	//std::cout << "Looking for Entity ID #" << Attributee->entity_id() <<"And name: " <<Attributee->domain()->name() <<"\t";
-	//std::cout << "Attributer Entity ID #" << Attributer->entity_id() << "And name: " << Attributer->domain()->name() << std::endl;
 	for (unsigned int i = 0; i < attributes->size(); i++)
 	{
 		Att = attributes->get(i);
 		if (!Att->isEntity())
 		{
 			if (!Att->isAggregate()) continue;	//If it isn't an entity or an enumeration, ignore it.
-
 		}
-		//std::cout << "\tAttribute #" << i << " Entity ID: " << ROSE_CAST(RoseObject, Att)->entity_id() << std::endl;
 		if (Att->entity_id() == Attributee->entity_id()) return Att;
 	}
 	return NULL;
@@ -734,8 +730,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 		//handleEntity(obj, dir);
 
 		auto atts = obj->attributes();	//We will check all the attributes of obj to see if any of them are external references.
-		for (unsigned int i = 0; i < atts->size(); i++)
-		{
+		for (unsigned int i = 0; i < atts->size(); i++) {
 			RoseAttribute *att = atts->get(i);
 			RoseObject * childobj = 0;
 			if (att->isEntity()){	//Easy mode. attribute is an entity so it will be a single roseobject.
@@ -750,9 +745,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 			}
 			if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 
-
 			if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
-
 
 				if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){
 					if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
@@ -795,13 +788,10 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	curse.traverse(destination);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
 	ListOfRoseObject Parents;
-	while (obj = curse.next())
-	{
+	while (obj = curse.next()) {
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
-		if (Parents.size() == 0)// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
-		{
-			std::cout << "\tAdding ref for " << obj->domain()->name() << " in " << destination->name() << std::endl;
+		if (Parents.size() == 0) {// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
 	}
@@ -952,7 +942,6 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 			//obj2->move(ProdOut);
 			count++;
 		}
-
 	}
 	forProdOut.move(ProdOut, INT_MAX);
 	std::cout << "list moved " << count << " objects." << std::endl;
@@ -1001,11 +990,7 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 	unsigned i, sz; std::string use;
 	//mark subassembly, shape_annotation, and step_extras
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
-	ListOfRoseObject list;
-	nauo->usedin(NULL, NULL, &list);
-	std::cout << list.size() << "-->\t" << list[0]->domain()->name() << "\n";
-	list[0]->usedin(NULL, NULL, &list);
-	std::cout << list.size() << "-->\t" << list[1]->domain()->name();//<< ", " << list2[1]->domain()->name(); 	stp_context_dependent_shape_representation;
+	
 	// Does this have real shapes?
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
@@ -1013,7 +998,6 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 		dir = makeDirforAssembly(pd, dir);
 		std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
 		subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
-		std::cout << "\tpd design in IF statement: " << pd->design()->name() << " \n\tsubmaster: " << subMaster->name() << std::endl;
 		std::cout << "SPLITTING " << subMaster->name() << std::endl;
 		if (splitFromSubAssem(subMaster, dir) == 2){
 			std::cout << "rechecking " << subMaster->name() << " something went wrong" << std::endl;
@@ -1133,8 +1117,7 @@ void resolve_pd_refs(RoseDesign * des){
 }
 
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a version of split thtat gets called from putouthelper to create 
-	//trees with multiple levels of references
-	if (!subMaster) { return 1; }
+	if (!subMaster) { return 1; } //trees with multiple levels of references
 	
 	stix_split_clear_needed_and_ignore_trimmed(subMaster);
 	StpAsmProductDefVec roots;
@@ -1162,23 +1145,29 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
-		std::cout << pm->child_nauos[i]->domain()->name() << "\n";
 		stix_split_delete_all_marks(root->design());
 		PutOutHelper(pm->child_nauos[i], dir);
 	}
 	rose_mark_begin();
 	rose_mark_set(root);
 	RoseDesign* dump = pnew RoseDesign;
-	std::cout << "Removing Objects from " << subMaster->name() << " NOW." << std::endl;
-	for (i = 0, sz = roots.size(); i < sz; i++){
-		if (roots[i] != root){ EmptyMaster(subMaster, roots[i], dump); } //remove geometry from master while keeping everything needed for root
+	
+	if (roots.size() > 1){
+		for (i = 0, sz = roots.size(); i < sz; i++){
+			if (roots[i] != root) { EmptyMaster(subMaster, roots[i], dump); } //remove geometry from master while keeping everything needed for root
+		}
+	}
+	else{
+		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
+			EmptyMaster(subMaster, stix_get_related_pdef(pm->child_nauos[i]), dump);
+		}
 	}
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
 	resolve_pd_refs(subMaster);
 
 	subMaster->save(); //save changes to submaster
-	ARMsave(subMaster);
+	//ARMsave(subMaster);
 	rose_release_backptrs(subMaster);
 	//removed trashing roots
 	//after last save on subMaster, copy objects back to design so that it can be moved back to subMaster's parent
