@@ -15,7 +15,6 @@
 #pragma comment(lib, "urlmon.lib")
 #pragma comment(lib,"wininet.lib")
 
-std::map<std::string, int> translated;
 std::vector<std::string> downloaded;	//List of downloaded files so we don't dl them twice.
 std::vector<std::string> options;
 std::vector<std::string>blackorwhitelist;
@@ -23,6 +22,9 @@ bool blacklist = true;	//Default the blackorwhitelist to being a blacklist, of s
 
 //Takes in a url and an output file name, goes online, downloads file, and puts it at location specified by output.
 int getfromweb(std::string url, std::string out);
+
+//Given a design, checks for references, if it finds any, opens the referenced design, checks for references, etc. Then resolves references from the bottom up.
+int MoveAllReferences(RoseDesign *design, std::string workingdir);
 
 //Takes object, puts itself and all of its children in the output design
 int PutItem(RoseObject *obj, RoseDesign* output)
@@ -53,7 +55,7 @@ int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 	std::string reffile = URI.substr(0, poundpos);	//reffile contains "filename.stp"
 	std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"		
 	//Figure out if it's a local file or not
-	if (reffile.find_first_of('/'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
+	if (reffile.find_first_of('/')||reffile.find_first_of('\\'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
 	{
 		//figure out if it is a url
 		if (reffile.find("http://") != std::string::npos || reffile.find("ftp://") != std::string::npos)
@@ -109,12 +111,25 @@ int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 		if (!found) return 2;	//Whitelisted file result
 	}
 	reffile = workingdir + reffile;
-	std::cout << reffile << " " <<anchor << std::endl;
 	RoseDesign * child = ROSE.findDesignInWorkspace(reffile.c_str());	//check if file is in memory.
 	if(child == NULL) child = ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
-	if (!child) return -1;	//file doesn't work for some reason.
+	if (!child)
+	{
+		std::cout << "File " << reffile << "cannot be found.\n";
+		return -1;	//file doesn't work for some reason.
+	}
+
+	RoseCursor curser;
+	curser.traverse(child->reference_section());
+	curser.domain(ROSE_DOMAIN(RoseReference));
+	if (curser.size() > 0) MoveAllReferences(child, workingdir);	//If the child has references, we resolve them before anything else.
+
 	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
-	if (!obj) return -1;	//Couldn't find the anchor.
+	if (!obj)
+	{
+		std::cout << "Anchor " << anchor << " not found in file: " << reffile <<'\n';
+		return -1;	//Couldn't find the anchor.
+	}
 	if (-1 == PutItem(obj, output))	//Move the object (which is currently in the child file) into the new output file.
 	{
 		//Something went wrong. This can't happen at the present, but in theory a change to PutItem could allow for it.
@@ -182,6 +197,36 @@ int parsecmdline(int argc, char*argv[], std::string &infilename, std::string &ou
 	}
 	return 0;
 }
+
+int MoveAllReferences(RoseDesign *design, std::string workingdir)	//Given a design, checks for references, if it finds any, opens the referenced design, checks for references, etc. Then resolves references from the bottom up.
+{
+	//Traverse the references
+	RoseCursor curser;
+	curser.traverse(design->reference_section());
+	curser.domain(ROSE_DOMAIN(RoseReference));
+	RoseObject * obj;
+	//std::cout << "Curser size: " << curser.size() << std::endl;
+	while (obj = curser.next())
+	{
+		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
+		//Pass the reference to AddItem, which will open the associated file 
+		//& handle adding the referenced item & its children to the new file.
+		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design, workingdir);
+		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
+		{
+			std::cerr << "Error parsing reference\n";
+			return EXIT_FAILURE;
+		}
+		else if (0 == returnval)	//Reference successfully transplanted.
+		{
+			rose_move_to_trash(obj);
+		}
+		//TODO: Maybe add stuff for black/white-list cases and download error?
+	}
+
+	return 0;
+}
+
 int main(int argc, char* argv[])
 {
 	options.push_back("-i [filelist] Ignore any listed children <Cannot be used alongside -a>");
@@ -197,12 +242,12 @@ int main(int argc, char* argv[])
 	}
 	std::string infilename, outfilename;
 	if (-1 == parsecmdline(argc, argv, infilename, outfilename)) return EXIT_FAILURE;
+	ROSE.quiet(1);	//Get rid of annoying ST-Dev output.
 	stplib_init();	// initialize merged cad library
 	//    rose_p28_init();	// support xml read/write
 	FILE *out;
 	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
-	ROSE.quiet(0);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 
 	/* Create a RoseDesign to hold the output data*/
@@ -213,8 +258,7 @@ int main(int argc, char* argv[])
 		std::cerr << "Error opening input file" << std::endl;
 		return EXIT_FAILURE;
 	}
-	std::string workingdir = master->fileDirectory();
-	if(!outfilename.find_first_of('/')) outfilename = "./" + outfilename;
+	if(!outfilename.find_first_of('/')&&!outfilename.find_first_of('\\')) outfilename = "./" + outfilename;
 	master->saveAs(outfilename.data());
 	RoseDesign * design = ROSE.useDesign(outfilename.data());
 	if (!design)
@@ -223,34 +267,11 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	//Design now contains the entire parent file.
-
-	//Traverse the references
-	RoseCursor curser;
-	curser.traverse(design->reference_section());
-	curser.domain(ROSE_DOMAIN(RoseReference));
-	RoseObject * obj;
-	//std::cout << "Curser size: " << curser.size() << std::endl;
-	while (obj = curser.next())
-	{
-		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
-		//Pass the reference to AddItem, which will open the associated file 
-		//& handle adding the referenced item & its children to the new file.
-		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design,workingdir);
-		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
-		{
-			std::cerr << "Error parsing reference\n";
-			return EXIT_FAILURE;
-		}
-		else if (0 == returnval)	//Reference successfully transplanted.
-		{
-			rose_move_to_trash(obj);
-		}
-		//TODO: Maybe add stuff for black/white-list cases and download error?
-	}
+	MoveAllReferences(design,master->fileDirectory());
 	for (auto i : downloaded)
 	{
 		//Remove temporary files
-		//DeleteFileA(i.data());
+		DeleteFileA(i.data());
 	}
 	rose_empty_trash();	//This deletes the reference from the new file, since we've replaced it with a local copy of the referenced object and it's children.
 	design->save();
