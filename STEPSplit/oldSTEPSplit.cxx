@@ -20,7 +20,6 @@
 #pragma comment(lib,"stpcad_stix.lib")
 
 void handleAggregate(RoseObject * obj, std::string dir = "");
-void handleEntity(RoseObject * obj, std::string dir = "");
 
 void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir = "");
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
@@ -696,9 +695,6 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
 	anchor.append(std::to_string(obj->entity_id()));	//ex. "advanced_face_split_item123"
-
-	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
-
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
 	int slashpos = reference.find("/");
 	if (slashpos > 0 && slashpos < reference.size()){
@@ -713,6 +709,14 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	URIManager = MyURIManager::make(obj);
 	//URIManager->should_go_in_des(obj->design());
 	URIManager->should_go_to_uri(ref);
+
+	MyPDManager* mgr = MyPDManager::make(obj);
+	if (mgr->getAnchorName() == ""){//TODO: call prodout addName before mmoving everything out of prodout in putout
+									//TODO: MAKE SURE THIS DOES NOT EFFECT THE USAGE OF THIS ANCHOR IN OTHER PLACES
+		mgr->nameAnchor(anchor);
+		//ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
+	}	//set anchor on obj with the manager later instead of letting it get set here
+
 	return ref;
 }
 
@@ -746,8 +750,8 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 			if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 
 			if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
-
-				if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){
+				//mark shape_reps & prod_defs after they have refernce assigned to them 
+				if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){ 
 					if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
 						if (!rose_is_marked(childobj->design(), sh_rep)){
 							MyPDManager * mgr = MyPDManager::make(obj);
@@ -756,7 +760,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 								rose_mark_set(childobj->design(), sh_rep);
 								break;
 							}
-							else{ break; }
+							else{ break; };
 						}
 						else{ break; }
 					}
@@ -796,58 +800,6 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 		}
 	}
 }
-/*
-void handleEntity(RoseObject * obj, std::string dir)
-{
-	auto atts = obj->attributes();	//We will check all the attributes of obj to see if any of them are external references.
-	for (unsigned int i = 0; i < atts->size(); i++)
-	{
-		RoseAttribute *att = atts->get(i);
-		RoseObject * childobj = 0;
-		if (att->isEntity()){	//Easy mode. attribute is an entity so it will be a single roseobject.
-			childobj = obj->getObject(att);
-		}
-		else if (att->isSelect()){	//Oh boy, a select. Get the contents. It might make childobj null, we'll check for that in a minute.
-			childobj = rose_get_nested_object(ROSE_CAST(RoseUnion, obj->getObject(att)));
-		}
-		if (att->isAggregate()){	//An aggregate! We have a whole function dedicated to this case.
-			handleAggregate(obj->getObject(att), dir);
-			continue;				//handleAggregate manages everything so we can just skip the next bits and move on to the next attribute.
-		}
-		if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
-		
-		
-		if (childobj->design() != obj->design() && !rose_is_marked(childobj)){	//If this all is true, time to create a reference/anchor pair and mark childobj
-			
-
-			if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){
-				if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
-					if (!rose_is_marked(childobj->design(), sh_rep) ){
-						MyURIManager * mgr = MyURIManager::make(obj);
-						mgr->should_point_to(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir));
-						rose_mark_set(childobj->design(), sh_rep);
-						return;
-					}
-					else{ return; }
-				}
-			}
-			if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
-				if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
-					if (!rose_is_marked(childobj->design(), pd_ref) ){
-						MyURIManager * mgr = MyURIManager::make(obj);
-						mgr->should_point_to(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir));
-						rose_mark_set(childobj->design(), pd_ref);
-						return;
-					}
-					else{ return; }
-				}
-			}
-			rose_mark_set(childobj);
-			std::string name(childobj->domain()->name());
-			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
-		}
-	}
-}*/
 
 void handleAggregate(RoseObject * obj, std::string dir)
 {
@@ -931,7 +883,6 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
 	ListOfRoseObject forProdOut;
-	//prod->move(ProdOut);
 	RoseCursor objs;
 	objs.traverse(src);
 	objs.domain(ROSE_DOMAIN(RoseStructure));
@@ -939,14 +890,11 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	while ((obj2 = objs.next()) != 0) {
 		if (stix_split_is_export(obj2)) {
 			forProdOut.add(obj2);
-			//obj2->move(ProdOut);
 			count++;
 		}
 	}
 	forProdOut.move(ProdOut, INT_MAX);
 	std::cout << "list moved " << count << " objects." << std::endl;
-	MakeReferencesAndAnchors(src, ProdOut, dir);
-	ProdOut->save();
 	return ProdOut;
 }
 
@@ -996,14 +944,18 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 		RoseDesign * src = pd->design();
 		RoseDesign * subMaster;
 		dir = makeDirforAssembly(pd, dir);
-		std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
+		//std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
 		subMaster = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
-		std::cout << "SPLITTING " << subMaster->name() << std::endl;
+		MakeReferencesAndAnchors(src, subMaster, dir);
+		subMaster->save();
+		//std::cout << "SPLITTING " << subMaster->name() << std::endl;
 		if (splitFromSubAssem(subMaster, dir) == 2){
 			std::cout << "rechecking " << subMaster->name() << " something went wrong" << std::endl;
-			subMaster->save();
 			splitFromSubAssem(subMaster, dir);
 		}
+
+		//TODO:::::::::::::::::::::: ITTERATE through obj and add anchors where needed
+
 		std::cout << "\tMoving objects from " << subMaster->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(subMaster, src); //may be needed later. definately needed
 	}
@@ -1016,7 +968,12 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 		if (i < sz) {
 			RoseDesign * src = pd->design();
 			std::cout << "\t";
-			/*RoseDesign * tmp = */PutOut(pd, dir);
+			RoseDesign * tmp = PutOut(pd, dir);
+			MakeReferencesAndAnchors(src, tmp, dir);
+			tmp->save();
+
+			//TODO:::::::::::::::::::::: //itterate through obj and add anchors where needed
+
 			backToSource(pd->design(), src);
 		}
 		else {
@@ -1046,7 +1003,7 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 	if (!src) { std::cout << "\nNo design in prod?" << std::endl; return 2; }
 	if (!prod){ return 1; }
 	if ((src != master)) {
-		std::cout << "THIS has already been moved\n\t" << master->name() << std::endl;
+		std::cout << prod->className() << " has already been moved\t" << master->name() << std::endl;
 		return 2;
 	}
 
@@ -1075,7 +1032,7 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 			count++;
 		}
 	}
-	std::cout << count << " objects removed from " << master->name() << std::endl;
+	//std::cout << count << " objects removed from " << master->name() << std::endl;
 	prod->move(dump);
 
 	return 0;
@@ -1103,7 +1060,7 @@ void resolve_pd_refs(RoseDesign * des){
 			}
 		}
 	}
-
+	
 	curse.traverse(des);
 	curse.domain(ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship));
 	while (obj = curse.next()){
@@ -1133,7 +1090,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	unsigned tmp, mostSubs = 0;
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		tmp = CountSubs(roots[i]);
-		std::cout << "\t" << roots[i]->domain()->name() << " has " << tmp << " subassemblies" << std::endl;
+		//std::cout << "\t" << roots[i]->domain()->name() << " has " << tmp << " subassemblies" << std::endl;
 		if (tmp > mostSubs){
 			mostSubs = tmp;
 			root = roots[i];
@@ -1152,16 +1109,10 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	rose_mark_set(root);
 	RoseDesign* dump = pnew RoseDesign;
 	
-	if (roots.size() > 1){
-		for (i = 0, sz = roots.size(); i < sz; i++){
-			if (roots[i] != root) { EmptyMaster(subMaster, roots[i], dump); } //remove geometry from master while keeping everything needed for root
-		}
+	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
+		EmptyMaster(subMaster, stix_get_related_pdef(pm->child_nauos[i]), dump);
 	}
-	else{
-		for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
-			EmptyMaster(subMaster, stix_get_related_pdef(pm->child_nauos[i]), dump);
-		}
-	}
+	//subMaster->key
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
 	resolve_pd_refs(subMaster);
