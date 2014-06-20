@@ -712,8 +712,8 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 
 	MyPDManager* mgr = MyPDManager::make(obj);
 	mgr->nameAnchor(anchor); //sets anchor name. If a ref is needed it will probably be need to be set somewhere else.
-	if (mgr->hasrefinit()){ mgr->hasBeenMade(); }
-	else{ mgr->refisin(ProdOut); }
+
+	mgr->refisin(master);
 	mgr->setRefforAnchor(ref);
 	return ref;
 }
@@ -775,7 +775,6 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 					}
 				}
 				rose_mark_set(childobj);
-				std::cout << obj->design()->name() << " , " << source->name() << std::endl;
 				addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
 			}
 		}
@@ -818,21 +817,6 @@ void handleAggregate(RoseObject * obj, std::string dir)
 		//std::cout << obj->entity_id() << obj->domain()->name() << "\n\t" << childobj->entity_id() << childobj->domain()->name() << std::endl;
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj))	//If we got here we've got an external reference which needs a reference/anchor pair and a marking.
 		{
-			if (childobj->domain() == ROSE_DOMAIN(stp_representation_relationship)){
-				std::cout << "GOT IT RIGHT\n";
-				if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
-					if (!rose_is_marked(childobj->design())){
-						MyURIManager * mgr = MyURIManager::make(obj);
-						if (!mgr->should_go_to_uri()){
-							mgr->should_go_to_uri(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir));
-							rose_mark_set(childobj->design());
-							return;
-						}
-						else{ return; }
-					}
-					else{ return; }
-				}
-			}//*/
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
 			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
@@ -885,7 +869,7 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	while ((obj2 = objs.next()) != 0) {
 		if (stix_split_is_export(obj2)) {
 			MyPDManager* mgr = MyPDManager::find(obj2);
-			if (mgr){ std::cout << mgr->getAnchorName() << "\n"; } //if obj has anchor name, then it will have an anchor. add 
+			//if (mgr){ std::cout << mgr->getAnchorName() << "\n"; } //if obj has anchor name, then it will have an anchor. add 
 			forProdOut.add(obj2);
 			count++;
 		}
@@ -939,15 +923,15 @@ void makeAnchors(RoseDesign * dst){ //change name to drop anchor
 	while (obj = curse.next()){
 		MyPDManager* mgr = MyPDManager::find(obj);
 		if (mgr){
-			if (mgr->skipStatus()){
-				dst->addName(mgr->getAnchorName().c_str(), obj);
-				mgr->hasBeenMade();
-			}
+			dst->addName(mgr->getAnchorName().c_str(), obj);
+			/*}
 
 			else{
-				dst->addName(mgr->getAnchorName().c_str(), mgr->getRef());
+			std::cout << "Adding anchor from " << mgr->getAnchorName() << ", " << obj->design()->name() << std::endl;
+			dst->addName(mgr->getAnchorName().c_str(), mgr->getRef());
 			}
 
+			}*/
 		}
 	}
 }
@@ -966,11 +950,12 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 		//std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
 		dst = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 		MakeReferencesAndAnchors(src, dst, dir);
-		makeAnchors(dst);
+		//makeAnchors(dst);
 		//std::cout << "SPLITTING " << dst->name() << std::endl;
 		if (splitFromSubAssem(dst, dir) == 2){
 			splitFromSubAssem(dst, dir); //sometimes it needs to cheeck twice.
-		}
+		}	
+		
 		//makeAnchors(dst);
 		std::cout << "\tMoving objects from " << dst->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(dst, src); //allows multiple items of the same geometry to exist
@@ -1125,23 +1110,55 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 		EmptyMaster(subMaster, stix_get_related_pdef(pm->child_nauos[i]), dump);
 	}
-	
+
+	RoseCursor ObjCurse;
+	ObjCurse.traverse(subMaster);
+	ObjCurse.domain(ROSE_DOMAIN(RoseObject));
+	RoseObject * anch;
+	while (anch = ObjCurse.next()){
+		MyPDManager* mgr = MyPDManager::find(anch);
+		if (mgr){
+			std::cout << "Anchor: " << mgr->getAnchorName() << "\n";
+			RoseCursor curse;
+			curse.traverse(subMaster);
+			curse.domain(ROSE_DOMAIN(RoseReference));
+			RoseReference * ref; RoseObject * obj;
+			std::cout << "Ref Curse size: " << curse.size() << "\n";
+			while (obj = curse.next()){
+				ref = ROSE_CAST(RoseReference, obj);
+				std::string URI = ref->uri();
+				int poundpos = URI.find_first_of('#');
+				URI = URI.substr(poundpos + 1);
+				std::cout << "URI: " << URI << "\n";
+				std::cout << mgr->getAnchorName() << " == " << URI << "\n";
+				if (mgr->getAnchorName() == URI){
+					subMaster->addName(mgr->getAnchorName().c_str(), ref);
+					mgr->nameAnchor("");
+				}
+			}
+		}
+	}
+
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
 	resolve_pd_refs(subMaster);
-//makeAnchors(subMaster);
 	subMaster->save(); //save changes to submaster
+	//makeAnchors(subMaster);
 	//ARMsave(subMaster);
 	rose_release_backptrs(subMaster);
 	//removed trashing roots
 	//after last save on subMaster, copy objects back to design so that it can be moved back to subMaster's parent
-	RoseCursor curse;
-	curse.traverse(dump);
+	RoseCursor FillCurse;
+	FillCurse.traverse(dump);
+	FillCurse.domain(NULL);
 	RoseObject* obj;
-	while (obj = curse.next()){
+	while (obj = FillCurse.next()){
 		obj->move(subMaster);
 	}
 	rose_move_to_trash(dump);
+
+
+	
 	return 0;
 }
 
@@ -1193,7 +1210,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (splitFromSubAssem(master, dir, true) == 0) { std::cout << "Success!\n"; }
-	
+
 	cur.traverse(master);
 	while (a_obj = cur.next()){
 		std::cout << a_obj->getModuleName() << std::endl;
