@@ -37,6 +37,7 @@ private:
 	RoseObject*						anchored = NULL;
 	std::string						anchorName;
 	RoseReference *					isref = NULL;
+	bool							skip = false;
 
 public:
 
@@ -46,15 +47,20 @@ public:
 	RoseReference * should_point_to()	{ return real_ref; }
 
 	void hasChild(stp_product_definition * c)	{ childPD = c; }
-	void hasChildIn(RoseDesign * d)				{ childDes = d; }
+	void refisin(RoseDesign * d)				{ childDes = d; }
+	RoseDesign * hasrefinit()					{ return childDes; }
 
 	void setAnchor(RoseObject* a)		{ anchored = a; }
 	RoseObject* getAnchoredObj()		{ return anchored; }
+
 	void nameAnchor(std::string s)		{ anchorName = s; }
 	std::string getAnchorName()			{ return anchorName; }
 
 	void setRefforAnchor(RoseReference * r)		{ isref = r; }
 	RoseReference* getRef()				{ return isref;	}
+
+	void hasBeenMade()					{ skip = true; }
+	bool skipStatus()					{ return skip; }
 
 	MyPDManager() { childPD = NULL; childDes = NULL; }
 
