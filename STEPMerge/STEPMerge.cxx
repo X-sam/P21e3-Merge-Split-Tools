@@ -9,11 +9,12 @@
 #include <iostream>
 #include <cstdio>
 #include <vector>
-#include<windows.h>
+#include<windows.h>	//for url stuff
+#include <direct.h>	//for chdir
 #include <tchar.h>
-#include <urlmon.h>
-#pragma comment(lib, "urlmon.lib")
-#pragma comment(lib,"wininet.lib")
+#include <urlmon.h>	//for url stuff
+#pragma comment(lib, "urlmon.lib")	//for url stuff
+#pragma comment(lib,"wininet.lib")	//for url stuff
 
 std::vector<std::string> downloaded;	//List of downloaded files so we don't dl them twice.
 std::vector<std::string> options;
@@ -206,6 +207,11 @@ int MoveAllReferences(RoseDesign *design, std::string workingdir)	//Given a desi
 	curser.domain(ROSE_DOMAIN(RoseReference));
 	RoseObject * obj;
 	//std::cout << "Curser size: " << curser.size() << std::endl;
+	if (!curser.size())
+	{
+		std::cout << "No references found." << std::endl;
+		return -1;
+	}
 	while (obj = curser.next())
 	{
 		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
@@ -250,8 +256,13 @@ int main(int argc, char* argv[])
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 
+	//Find if the input file is in a directory, so we can go to there. Fixes some weirdness with directories.
+	if (infilename.find_last_of('\\') || infilename.find_last_of('/'))
+	{
+		auto pos = infilename.find_last_of('\\') ? infilename.find_last_of('\\') : infilename.find_last_of('/');
+		chdir(infilename.substr(0, pos).c_str());
+	}
 	/* Create a RoseDesign to hold the output data*/
-
 	RoseDesign * master = ROSE.useDesign(infilename.data());
 	if (!master)
 	{
@@ -267,7 +278,7 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	//Design now contains the entire parent file.
-	MoveAllReferences(design,master->fileDirectory());
+	int retval = MoveAllReferences(design,master->fileDirectory());
 	for (auto i : downloaded)
 	{
 		//Remove temporary files
@@ -275,7 +286,7 @@ int main(int argc, char* argv[])
 	}
 	rose_empty_trash();	//This deletes the reference from the new file, since we've replaced it with a local copy of the referenced object and it's children.
 	design->save();
-	return EXIT_SUCCESS;
+	return retval;
 }
 
 //TODO: Make platform agnostic. Consider using wget or something similar if in *nix environment.
