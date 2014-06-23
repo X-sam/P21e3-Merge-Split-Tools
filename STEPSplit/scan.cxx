@@ -96,7 +96,8 @@ void scan_anchors(
 		if (!mgr) continue;
 
 		RoseReference * ref = mgr->should_go_to_uri();
-		if (ref->isResolved()) continue;
+		if (!ref) continue;
+		if (anchors->design() == anchor->design()) continue;
 		anchors->put(anchors->listOfKeys()->get(i), ref);
 		//print_ref_use("hi", ref);
 	}
