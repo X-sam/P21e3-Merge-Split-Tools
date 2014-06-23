@@ -120,7 +120,7 @@ void update_uri_forwarding(RoseDesign * design)
 	while ((obj = objects.next()) != 0) scan_select_pointers(obj);
 
 	auto anchors = design->nameTable();
-	scan_anchors(anchors);
+	if(anchors){ scan_anchors(anchors); }
 
 }
 
