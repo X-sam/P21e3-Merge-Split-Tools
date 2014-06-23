@@ -25,13 +25,13 @@ void MoveGeometry(RoseDesign * source, RoseDesign * dest);
 int main(int argc, char* argv[])
 {
 
-	stplib_init();	// initialize merged cad library
-
 	if (argc < 3)
 	{
 		std::cout << "Usage: " << argv[0] << " [Input.stp] [OutputMasterFile.stp]\n";
 		return EXIT_FAILURE;
 	}
+	ROSE.quiet(1);
+	stplib_init();	// initialize merged cad library
 
 	FILE *out;
 	out = fopen("log.txt", "w");
