@@ -709,12 +709,13 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	URIManager = MyURIManager::make(obj);
 	//URIManager->should_go_in_des(obj->design());
 	URIManager->should_go_to_uri(ref);
-
+	ProdOut->addName(anchor.c_str(), obj);
+	/*
 	MyPDManager* mgr = MyPDManager::make(obj);
 	mgr->nameAnchor(anchor); //sets anchor name. If a ref is needed it will probably be need to be set somewhere else.
 
 	mgr->refisin(master);
-	mgr->setRefforAnchor(ref);
+	mgr->setRefforAnchor(ref);*/
 	return ref;
 }
 
@@ -914,8 +915,9 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	return dir;
 }
 
-void makeAnchors(RoseDesign * dst){ //change name to drop anchor
+ListOfRoseObject* getAnchorLST(RoseDesign * dst){ //change name to drop anchor
 	RoseCursor curse;
+	ListOfRoseObject* lst;
 	curse.traverse(dst);
 	curse.domain(ROSE_DOMAIN(RoseObject));
 	RoseObject* obj;
@@ -923,15 +925,20 @@ void makeAnchors(RoseDesign * dst){ //change name to drop anchor
 	while (obj = curse.next()){
 		MyPDManager* mgr = MyPDManager::find(obj);
 		if (mgr){
+			lst->add(obj);
+			//dst->addName(mgr->getAnchorName().c_str(), obj);
+		}
+	}
+	return lst;
+}
+
+void makeAnchors(ListOfRoseObject* lst, RoseDesign * dst){
+	unsigned i, sz;
+	for (i = 0, sz = lst->size(); i < sz; i++){
+		RoseObject* obj = lst->get(i);
+		MyPDManager* mgr = MyPDManager::find(obj);
+		if (dst == obj->design()){
 			dst->addName(mgr->getAnchorName().c_str(), obj);
-			/*}
-
-			else{
-			std::cout << "Adding anchor from " << mgr->getAnchorName() << ", " << obj->design()->name() << std::endl;
-			dst->addName(mgr->getAnchorName().c_str(), mgr->getRef());
-			}
-
-			}*/
 		}
 	}
 }
@@ -946,17 +953,17 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
 		RoseDesign * dst;
+		ListOfRoseObject* lst;
 		dir = makeDirforAssembly(pd, dir);
 		//std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
 		dst = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 		MakeReferencesAndAnchors(src, dst, dir);
-		//makeAnchors(dst);
+		//lst = getAnchorLST(dst);
 		//std::cout << "SPLITTING " << dst->name() << std::endl;
 		if (splitFromSubAssem(dst, dir) == 2){
 			splitFromSubAssem(dst, dir); //sometimes it needs to cheeck twice.
 		}	
-		
-		//makeAnchors(dst);
+		//makeAnchors(lst, dst);
 		std::cout << "\tMoving objects from " << dst->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(dst, src); //allows multiple items of the same geometry to exist
 	}
@@ -970,7 +977,7 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 			std::cout << "\t";
 			RoseDesign * tmp = PutOut(pd, dir);
 			MakeReferencesAndAnchors(src, tmp, dir);
-			makeAnchors(tmp); //cements anchors into file
+			//makeAnchors(tmp); //cements anchors into file
 			tmp->save();
 			backToSource(pd->design(), src);
 		}
