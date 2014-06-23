@@ -12,7 +12,7 @@
 #include "scan.h"
 #include <ctype.h>
 
-#pragma comment(lib,"stpcad_stix.lib")
+#pragma comment(lib,"stpman_stix.lib")
 
 void handleAggregate(RoseObject * obj);
 void handleEntity(RoseObject * obj);
