@@ -709,12 +709,26 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
 	ProdOut->addName(anchor.c_str(), obj);
-	/*
-	MyPDManager* mgr = MyPDManager::make(obj);
-	mgr->nameAnchor(anchor); //sets anchor name. If a ref is needed it will probably be need to be set somewhere else.
-	mgr->refisin(master);
-	mgr->setRefforAnchor(ref);//*/
 	return ref;
+}
+
+bool hasAnchorinSource(RoseObject* obj, RoseDesign* source){
+	DictionaryOfRoseObject * anchors;
+	anchors = source->nameTable();
+	if (!anchors) { return false; }
+	for (unsigned i = 0; i < anchors->size(); i++)
+	{
+		RoseObject *anchor = anchors->listOfValues()->get(i);
+		if (obj->design() == anchor->design()); {
+			if (obj->domain() == anchor->domain()){
+				if (obj == anchor){
+					std::cout << obj->domain()->name() << " and " << anchor->domain()->name() << " is " << anchors->listOfKeys()->get(i) << std::endl;
+					return(true);
+				}
+			}
+		}
+	}
+	return(false);
 }
 
 void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir){
@@ -725,7 +739,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	RoseCursor curse;
 	curse.traverse(source);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//We are only interested in actual entities, so we set our domain to that.
-	while (obj = curse.next())	{
+	while (obj = curse.next())	{ //traverse entities in source
 		//<handleEntity(obj, dir);>
 		auto atts = obj->attributes();	//We will check all the attributes of obj to see if any of them are external references.
 		for (unsigned int i = 0; i < atts->size(); i++) {
@@ -791,7 +805,14 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 		if (Parents.size() == 0) {// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
 			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
-	}
+	}/*
+	curse.traverse(destination);
+	curse.domain(ROSE_DOMAIN(RoseStructure));
+	while (obj = curse.next()){
+		if (hasAnchorinSource(obj, source)){
+			addRefAndAnchor(obj, obj->design(), source, dir);
+		}
+	}*/
 }
 
 void handleAggregate(RoseObject * obj, std::string dir)
@@ -937,16 +958,22 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
 		RoseDesign * dst;
-		dir = makeDirforAssembly(pd, dir);
-		//std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
+		dir = makeDirforAssembly(pd, dir);	//makes the directory and changes dir to be the current directory
 		dst = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
 		MakeReferencesAndAnchors(src, dst, dir);
-		//makeAnchors(dst);
-		//std::cout << "SPLITTING " << dst->name() << std::endl;
 		if (splitFromSubAssem(dst, dir) == 2){
 			splitFromSubAssem(dst, dir); //sometimes it needs to cheeck twice.
-		}	
-		
+		}
+		////check for entities in dst that have anchors in src
+		RoseCursor curse; RoseObject* obj;
+		curse.traverse(dst);
+		curse.domain(ROSE_DOMAIN(RoseStructure));
+		while (obj = curse.next()){
+			if (hasAnchorinSource(obj, src)){
+				addRefAndAnchor(obj, dst, src, dir);
+			}
+		}
+		///////////
 		std::cout << "\tMoving objects from " << dst->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(dst, src); //allows multiple items of the same geometry to exist
 	}
@@ -960,7 +987,16 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 			std::cout << "\t";
 			RoseDesign * tmp = PutOut(pd, dir);
 			MakeReferencesAndAnchors(src, tmp, dir);
-			//makeAnchors(tmp); //cements anchors into file
+			////check for entities in dst that have anchors in src
+			RoseCursor curse; RoseObject* obj;
+			curse.traverse(tmp);
+			curse.domain(ROSE_DOMAIN(RoseStructure));
+			while (obj = curse.next()){
+				if (hasAnchorinSource(obj, src)){
+					addRefAndAnchor(obj, tmp, src, dir);
+				}
+			}
+			/////////
 			tmp->save();
 			backToSource(pd->design(), src);
 		}
