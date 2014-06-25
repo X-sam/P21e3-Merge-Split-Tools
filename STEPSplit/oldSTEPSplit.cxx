@@ -692,16 +692,26 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	//std::cout << "\n\nProdOut: " << ProdOut->fileDirectory() << "\nMaster: " << master->fileDirectory() << "\n";
-
+	unsigned i;
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
 	anchor.append(std::to_string(obj->entity_id()));	//ex. "advanced_face_split_item123"
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
+	std::string masDir(master->fileDirectory());
 	int slashpos = reference.find("/");
-	if (slashpos > 0 && slashpos < reference.size()){
-		reference = reference.substr(slashpos + 1);
+	for (i = 0; (i < reference.size()) && (i < masDir.size()); i++){
+		if (reference[i] == masDir[i]){
+			while (slashpos <= i){
+				slashpos = reference.find("/",slashpos+1);
+				std::cout << slashpos << ": " << reference << "\n" << slashpos << ": " << masDir << "\n\n";
+			}
+		}
 	}
+	if (slashpos > 0 && slashpos < reference.size()){
+		reference = reference.substr(slashpos);
+	}
+	reference = "." + reference;
 	reference.append(ProdOut->name());	//Add the file name.
 	reference.append(".stp#" + anchor); //Finally add the file type, a pound, and the anchor. It'll look like "folder/file.stp#advanced_face_split_item123"
 
@@ -729,9 +739,10 @@ bool hasAnchorinSource(RoseObject* obj, RoseDesign* source){
 						refCheck = MyURIManager::find(obj);
 						if (refCheck){
 
-							if (refCheck->should_go_to_uri()->design() == source) { 
+							if (refCheck->should_go_to_uri()->design() == source) {
 								//std::cout << "Ref design: " << refCheck->should_go_to_uri()->design()->name() << "\nSource Design "<< source->name() <<"\n";
-								return false; }
+								return false;
+							}
 						}
 						std::cout << obj->domain()->name() << obj->entity_id() << " and " << anchors->listOfKeys()->get(i) << std::endl;
 						return(true);
