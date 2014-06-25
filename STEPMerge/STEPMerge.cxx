@@ -1,4 +1,4 @@
-//Samson Made this code.
+﻿//Samson Made this code.
 //5/19/14
 
 #include <rose.h>
@@ -31,12 +31,62 @@ int MoveAllReferences(RoseDesign *design, std::string workingdir);
 int PutItem(RoseObject *obj, RoseDesign* output)
 {
 	RoseDesign * child = obj->design();
-	if (child == output) return 0;
-	//	std::cout << "Moving " << obj->domain()->name() <<" id#: " <<obj->entity_id() <<std::endl;
-	//	std::cout << "Size of Child design: " << child->size() <<"\n\tSize of output design: " << output->size() <<"\n\tTotal size of child and output: " <<child->size()+output->size() <<std::endl;
-	obj->move(output, INT_MAX, TRUE);
-	//	std::cout << "Size of Child design After: " << child->size() << "\n\tSize of output design After: " << output->size() << "\n\tTotal size of child and output after: " <<child->size()+output->size() <<std::endl;
+	if (child == output) return 0;	//If the design of object is the output design, we are already done.
+	obj->move(output, INT_MAX, FALSE);
 	return 1;
+}
+
+//Given a URI, extracts a file, anchor, and directory heirarchy to the file (if applicable)
+//Returns 0 on success, -1 on unexpected failure, -2 on Download Failure. 
+int URIParse(const std::string URI, std::string &filename, std::string &anchor, std::string &workingdir)
+{
+	//URI looks like "filename.stp#item1234"
+	//Split that into "filename.stp" and "item1234"
+	int poundpos = URI.find_first_of('#');
+	filename = URI.substr(0, poundpos);	//reffile contains something like "filename.stp" or maybe "path/to/filename.stp" or maybe even "http://url.com/file.stp" 
+	anchor = URI.substr(poundpos + 1);	//anchor contains something like "item1234"		
+	//Figure out if it's a local file or not
+	if (filename.find_first_of('/') || filename.find_first_of('\\'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
+	{
+		//figure out if it is a url
+		if (filename.find("http://") != std::string::npos || filename.find("ftp://") != std::string::npos)
+		{
+			//It's a url so go get it from the web
+			int lastslash = filename.find_last_of('/');
+			std::string out(filename.begin() + lastslash + 1, filename.end());
+			bool alreadyhavefile = false;
+			for (auto i : downloaded)
+			{
+				if (i == out) alreadyhavefile = true;
+			}
+			if (!alreadyhavefile)
+			{
+				int webreturn = getfromweb(filename, out);
+				if (webreturn != 0)
+				{
+					std::cerr << "Error Downloading file\n";
+					return -2;
+				}
+				downloaded.push_back(out);	//We have the file so add it to the list of downloaded files.
+			}
+			filename = out;	//Set reffile to the newly downloaded file, so that we can import it and such.
+		}
+		else if (filename.find("..\\") != std::string::npos || filename.find("../") != std::string::npos)
+		{
+			std::cerr << "Relative pathing not supported\n";
+			return -1;
+		}
+		auto nextbackslash = filename.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
+		while (nextbackslash != std::string::npos)
+		{
+			filename[nextbackslash] = '/';
+			nextbackslash = filename.find('\\', nextbackslash);
+		}
+		auto lastslash = filename.find_last_of('/');
+		workingdir += filename.substr(0, lastslash + 1);		//add the relative path to filedir
+		filename = filename.substr(lastslash + 1);		//Remove path from filename, so now it should look like "file.stp"
+	}
+	return 0;
 }
 
 //Takes in a reference and a design. 
@@ -47,46 +97,12 @@ int PutItem(RoseObject *obj, RoseDesign* output)
 //	1 on References Blacklisted File
 //	2 on Doesn't Reference Whitelisted File
 // -2 on Download Failure
-int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
+int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir="./")
 {
-	std::string URI(ref->uri());
-	//URI looks like "filename.stp#item1234"
-	//Split that into "filename.stp" and "item1234"
-	int poundpos = URI.find_first_of('#');
-	std::string reffile = URI.substr(0, poundpos);	//reffile contains "filename.stp"
-	std::string anchor = URI.substr(poundpos + 1);	//anchor contains "item1234"		
-	//Figure out if it's a local file or not
-	if (reffile.find_first_of('/')||reffile.find_first_of('\\'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
-	{
-		//figure out if it is a url
-		if (reffile.find("http://") != std::string::npos || reffile.find("ftp://") != std::string::npos)
-		{
-			//It's a url so go get it from the web
-			int lastslash = reffile.find_last_of('/');
-			std::string out(reffile.begin() + lastslash + 1, reffile.end());
-			bool alreadyhavefile = false;
-			for (auto i : downloaded)
-			{
-				if (i == out) alreadyhavefile = true;
-			}
-			if (!alreadyhavefile)
-			{
-				int webreturn = getfromweb(reffile, out);
-				if (webreturn != 0)
-				{
-					std::cerr << "Error Downloading file\n";
-					return -2;
-				}
-				downloaded.push_back(out);	//We have the file so add it to the list of downloaded files.
-			}
-			reffile = out;	//Set reffile to the newly downloaded file, so that we can import it and such.
-		}
-		else if (reffile.find("..\\") != std::string::npos || reffile.find("../") != std::string::npos)
-		{
-			std::cerr << "Relative pathing not supported\n";
-			return -1;
-		}
-	}
+	std::string reffile, anchor;
+	std::string filedir = workingdir;				//we need to know what directory the file is in, start at working dir and build the relative path in URIParse.
+	int URIReturnValue = URIParse(ref->uri(), reffile, anchor, filedir); //Get the strings we need out of the URI.
+	if (0 != URIReturnValue) return URIReturnValue;	
 	//Now we can open the file and find the specific item referenced by the anchor.
 	if (blacklist)
 	{
@@ -101,7 +117,7 @@ int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 	else    //We have a whitelist and need to see if the file is in the list
 	{
 		bool found = false;
-		for (auto i : blackorwhitelist)
+		for (auto i : blackorwhitelist)	//if there's no list then this loop happens 0 times. Efficient.
 		{
 			if (i == reffile)
 			{
@@ -111,9 +127,12 @@ int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 		}
 		if (!found) return 2;	//Whitelisted file result
 	}
-	reffile = workingdir + reffile;
-	RoseDesign * child = ROSE.findDesignInWorkspace(reffile.c_str());	//check if file is in memory.
-	if(child == NULL) child = ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
+	RoseDesign * child = ROSE.findDesignInWorkspace(reffile.substr(0,reffile.find('.')).c_str());	//check if file is in memory.
+	reffile = filedir + reffile;
+	if (child == NULL)
+	{
+		child = ROSE.findDesign(reffile.c_str());	//Child file opened as a new design
+	}
 	if (!child)
 	{
 		std::cout << "File " << reffile << "cannot be found.\n";
@@ -123,8 +142,11 @@ int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 	RoseCursor curser;
 	curser.traverse(child->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
-	if (curser.size() > 0) MoveAllReferences(child, workingdir);	//If the child has references, we resolve them before anything else.
-
+	if (curser.size() > 0)
+	{
+		std::cout << "File " << child->name() << " has children.\n";
+		MoveAllReferences(child, filedir);	//If the child has references, we resolve them before anything else.
+	}
 	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
 	if (!obj)
 	{
@@ -155,10 +177,25 @@ int AddItem(RoseReference *ref, RoseDesign* output,std::string workingdir="./")
 				);
 			rose_put_nested_object((RoseUnion*)sel, obj);
 		}
+		if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) continue;
 		else{
 			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
 		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
+
+	DictionaryOfRoseObject * anchors = child->nameTable(); //Check if the reference was used in the list of anchors.
+	int anchorssize = anchors->listOfValues()->size();
+	for (unsigned i = 0; i < anchorssize; i++)
+	{
+		//anchors->listOfValues() is the RoseObject pointed to by the anchor. If it is local, then the design will be child. 
+		//We want to find the external ones that use the same reference as the one we resolved and change them.
+		RoseObject * anch = anchors->listOfValues()->get(i);
+		if (anch==obj)	
+		{
+			std::cout << anchors->listOfKeys()->get(i) << " is pointing to this thing we are at EID: " << obj->entity_id() <<"which is a " <<obj->className()<<'\n';
+			anchors->add(anchors->listOfKeys()->get(i),obj);	//obj is the thing we resolved the reference to.
+		}
+	}
 	//child->save();
 	return 0;
 }
@@ -199,7 +236,7 @@ int parsecmdline(int argc, char*argv[], std::string &infilename, std::string &ou
 	return 0;
 }
 
-int MoveAllReferences(RoseDesign *design, std::string workingdir)	//Given a design, checks for references, if it finds any, opens the referenced design, checks for references, etc. Then resolves references from the bottom up.
+int MoveAllReferences(RoseDesign *design, const std::string workingdir)	//Given a design, checks for references, if it finds any, opens the referenced design, checks for references, etc. Then resolves references from the bottom up.
 {
 	//Traverse the references
 	RoseCursor curser;
@@ -216,7 +253,8 @@ int MoveAllReferences(RoseDesign *design, std::string workingdir)	//Given a desi
 	{
 		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
 		//Pass the reference to AddItem, which will open the associated file 
-		//& handle adding the referenced item & its children to the new file.
+		//& handle adding the referenced item & its children to design.
+		std::cout << "reference no. " << obj->entity_id() <<'\n';
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design, workingdir);
 		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
 		{
@@ -255,7 +293,7 @@ int main(int argc, char* argv[])
 	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
-
+	RoseP21Writer::preserve_eids = ROSE_TRUE;
 	//Find if the input file is in a directory, so we can go to there. Fixes some weirdness with directories.
 	if (infilename.find_last_of('\\') || infilename.find_last_of('/'))
 	{
