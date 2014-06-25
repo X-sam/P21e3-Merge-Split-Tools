@@ -2,7 +2,6 @@
 //5/19/14
 
 #include <rose.h>
-#include <rose_p28.h>
 #include <stp_schema.h>
 #include <string>
 #include <map>
@@ -192,7 +191,7 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 		RoseObject * anch = anchors->listOfValues()->get(i);
 		if (anch==obj)	
 		{
-			std::cout << anchors->listOfKeys()->get(i) << " is pointing to this thing we are at EID: " << obj->entity_id() <<"which is a " <<obj->className()<<'\n';
+			std::cout << anchors->listOfKeys()->get(i) << " is pointing to this thing we are at EID: " << anch->entity_id() <<"which is a " <<anch->className()<<'\n';
 			anchors->add(anchors->listOfKeys()->get(i),obj);	//obj is the thing we resolved the reference to.
 		}
 	}
@@ -288,7 +287,6 @@ int main(int argc, char* argv[])
 	if (-1 == parsecmdline(argc, argv, infilename, outfilename)) return EXIT_FAILURE;
 	ROSE.quiet(1);	//Get rid of annoying ST-Dev output.
 	stplib_init();	// initialize merged cad library
-	//    rose_p28_init();	// support xml read/write
 	FILE *out;
 	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
