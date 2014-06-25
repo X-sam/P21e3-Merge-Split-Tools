@@ -691,6 +691,8 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)
 }
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
+	//std::cout << "\n\nProdOut: " << ProdOut->fileDirectory() << "\nMaster: " << master->fileDirectory() << "\n";
+
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_item");				//"advanced_face_split_item"
 	if (obj->entity_id() == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << obj->entity_id() << std::endl; }
@@ -709,12 +711,37 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
 	ProdOut->addName(anchor.c_str(), obj);
-	/*
-	MyPDManager* mgr = MyPDManager::make(obj);
-	mgr->nameAnchor(anchor); //sets anchor name. If a ref is needed it will probably be need to be set somewhere else.
-	mgr->refisin(master);
-	mgr->setRefforAnchor(ref);//*/
 	return ref;
+}
+
+bool hasAnchorinSource(RoseObject* obj, RoseDesign* source){
+	DictionaryOfRoseObject * anchors;
+	anchors = source->nameTable();
+	if (!anchors) { return false; }
+
+	for (unsigned i = 0; i < anchors->size(); i++) {
+		RoseObject *anchor = anchors->listOfValues()->get(i);
+		if (obj->design() == anchor->design()) {
+			if (anchor->design() != source){
+				if (obj->domain()->name() == anchor->domain()->name()){
+					if (obj == anchor){
+						MyURIManager *refCheck;
+						refCheck = MyURIManager::find(obj);
+						if (refCheck){
+
+							if (refCheck->should_go_to_uri()->design() == source) { 
+								//std::cout << "Ref design: " << refCheck->should_go_to_uri()->design()->name() << "\nSource Design "<< source->name() <<"\n";
+								return false; }
+						}
+						std::cout << obj->domain()->name() << obj->entity_id() << " and " << anchors->listOfKeys()->get(i) << std::endl;
+						return(true);
+					}
+				}
+			}
+		}
+
+	}
+	return(false);
 }
 
 void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std::string dir){
@@ -725,7 +752,7 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination, std
 	RoseCursor curse;
 	curse.traverse(source);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//We are only interested in actual entities, so we set our domain to that.
-	while (obj = curse.next())	{
+	while (obj = curse.next())	{ //traverse entities in source
 		//<handleEntity(obj, dir);>
 		auto atts = obj->attributes();	//We will check all the attributes of obj to see if any of them are external references.
 		for (unsigned int i = 0; i < atts->size(); i++) {
@@ -926,7 +953,9 @@ void makeAnchors(RoseDesign * dst){ //change name to drop anchor
 		}
 	}
 }
-
+///<summary>
+///
+///</summary>
 int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool outPD){
 	stp_product_definition * pd = stix_get_related_pdef(nauo);
 	unsigned i, sz; std::string use;
@@ -937,16 +966,24 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 	if (pm->child_nauos.size()) {
 		RoseDesign * src = pd->design();
 		RoseDesign * dst;
-		dir = makeDirforAssembly(pd, dir);
-		//std::cout << "Creating dir at " << dir << " For " << pd->domain()->name() << std::endl;
+		dir = makeDirforAssembly(pd, dir);	//makes the directory and changes dir to be the current directory
 		dst = PutOut(pd, dir); //make stepfile for assembly. Can it be made into a parent of its subassemblies? (like for references) this would be cool but i need to figure out the logic of that
+		RoseMark bonus = rose_mark_begin();
 		MakeReferencesAndAnchors(src, dst, dir);
-		//makeAnchors(dst);
-		//std::cout << "SPLITTING " << dst->name() << std::endl;
 		if (splitFromSubAssem(dst, dir) == 2){
 			splitFromSubAssem(dst, dir); //sometimes it needs to cheeck twice.
-		}	
-		
+		}
+		////check for entities in dst that have anchors in src
+		RoseCursor curse; RoseObject* obj;
+		curse.traverse(dst);
+		curse.domain(ROSE_DOMAIN(RoseStructure));
+		while (obj = curse.next()){
+			if (hasAnchorinSource(obj, src) && !rose_is_marked(obj)){
+				addRefAndAnchor(obj, dst, src, dir);
+			}
+		}
+		rose_mark_end(bonus);
+		///////////*/
 		std::cout << "\tMoving objects from " << dst->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
 		backToSource(dst, src); //allows multiple items of the same geometry to exist
 	}
@@ -960,7 +997,16 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 			std::cout << "\t";
 			RoseDesign * tmp = PutOut(pd, dir);
 			MakeReferencesAndAnchors(src, tmp, dir);
-			//makeAnchors(tmp); //cements anchors into file
+			////check for entities in dst that have anchors in src
+			RoseCursor curse; RoseObject* obj;
+			curse.traverse(tmp);
+			curse.domain(ROSE_DOMAIN(RoseStructure));
+			while (obj = curse.next()){
+				if (hasAnchorinSource(obj, src) && !rose_is_marked(obj)){
+					addRefAndAnchor(obj, tmp, src, dir);
+				}
+			}
+			////////*/
 			tmp->save();
 			backToSource(pd->design(), src);
 		}
@@ -970,7 +1016,9 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 	}
 	return 0;
 }
-
+///<summary>
+///Counts the subassemblies that belong to a root object, internal function for splitFromSubAssem
+///</summary>
 int CountSubs(stp_product_definition * root){ //return the total count of subassemblies in a product
 	unsigned subs = 0;
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
@@ -1006,7 +1054,6 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 	tag_subassembly(prod);
 	tag_shape_annotation(src);
 	tag_step_extras(src);
-
 	// Move all of the objects that we need to export over to the
 	// destination design. It does not care where aggregates are though.
 	RoseCursor objs;
@@ -1020,7 +1067,6 @@ int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* d
 			count++;
 		}
 	}
-	//std::cout << count << " objects removed from " << master->name() << std::endl;
 	prod->move(dump);
 
 	return 0;
@@ -1068,7 +1114,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	StpAsmProductDefVec roots;
 	stix_find_root_products(&roots, subMaster);
 	stp_product_definition * root;
-	rose_compute_backptrs(subMaster);
+	//rose_compute_backptrs(subMaster);
 	stix_tag_asms(subMaster);
 	StixMgrProperty::tag_design(subMaster);
 	StixMgrPropertyRep::tag_design(subMaster);
@@ -1078,7 +1124,6 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	unsigned tmp, mostSubs = 0;
 	for (i = 0, sz = roots.size(); i < sz; i++){
 		tmp = CountSubs(roots[i]);
-		//std::cout << "\t" << roots[i]->domain()->name() << " has " << tmp << " subassemblies" << std::endl;
 		if (tmp > mostSubs){
 			mostSubs = tmp;
 			root = roots[i];
@@ -1088,6 +1133,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	// recurse to all subproducts, do this even if there is geometry
 	//change pd to its analog in assembly
 	if (mkDir) { dir = makeDirforAssembly(root, dir); } //currently only done when called from main, but this could change
+	if (!root) { return 2; }
 	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(root);
 	for (i = 0, sz = pm->child_nauos.size(); i < sz; i++) {
 		stix_split_delete_all_marks(root->design());
@@ -1119,8 +1165,7 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 				std::string URI = ref->uri();
 				int poundpos = URI.find_first_of('#');
 				URI = URI.substr(poundpos + 1);
-				std::cout << "URI: " << URI << "\n";
-				std::cout << mgr->getAnchorName() << " == " << URI << "\n";
+				std::cout << "URI: " << URI << "\n" << mgr->getAnchorName() << " == " << URI << "\n";
 				if (mgr->getAnchorName() == URI){
 					subMaster->addName(mgr->getAnchorName().c_str(), ref);
 					mgr->nameAnchor("");
@@ -1132,13 +1177,10 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 	rose_mark_end();
 	update_uri_forwarding(subMaster);
 	resolve_pd_refs(subMaster);
-	subMaster->save(); //save changes to submaster
-	//makeAnchors(subMaster);
+	subMaster->save(); //save changes to submaster;
 	//ARMsave(subMaster);
-	rose_release_backptrs(subMaster);
-	//removed trashing roots
-	//after last save on subMaster, copy objects back to design so that it can be moved back to subMaster's parent
-	RoseCursor FillCurse;
+	//rose_release_backptrs(subMaster);
+	RoseCursor FillCurse; //after last save on subMaster, copy objects back to design so that it can be moved back to subMaster's parent
 	FillCurse.traverse(dump);
 	FillCurse.domain(NULL);
 	RoseObject* obj;
@@ -1146,9 +1188,6 @@ int splitFromSubAssem(RoseDesign *subMaster, std::string dir, bool mkDir){//a ve
 		obj->move(subMaster);
 	}
 	rose_move_to_trash(dump);
-
-
-	
 	return 0;
 }
 
@@ -1199,7 +1238,9 @@ int main(int argc, char* argv[])
 		std::cout << a_obj->getModuleName() << std::endl;
 	}
 
+	rose_compute_backptrs(master);
 	if (splitFromSubAssem(master, dir, true) == 0) { std::cout << "Success!\n"; }
+	rose_release_backptrs(master);
 
 	cur.traverse(master);
 	while (a_obj = cur.next()){

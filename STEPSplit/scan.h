@@ -37,7 +37,6 @@ private:
 	RoseObject*						anchored = NULL;
 	std::string						anchorName;
 	RoseReference *					isref = NULL;
-	bool							skip = false;
 
 public:
 
@@ -58,9 +57,6 @@ public:
 
 	void setRefforAnchor(RoseReference * r)		{ isref = r; }
 	RoseReference* getRef()				{ return isref;	}
-
-	void hasBeenMade()					{ skip = true; }
-	bool skipStatus()					{ return skip; }
 
 	MyPDManager() { childPD = NULL; childDes = NULL; }
 
