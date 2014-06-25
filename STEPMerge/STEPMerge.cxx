@@ -88,6 +88,30 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 	return 0;
 }
 
+//Given a RRU, figures out where the object should be and puts it there.
+int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
+{
+	if (rru == NULL) return -1;
+	//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() << std::endl;
+
+	if (rru->user_att()->isSelect()) {
+
+		RoseDomain * selectdomain = rru->user_att()->slotDomain();
+		RoseObject * sel = rru->user()->design()->pnewInstance(selectdomain);
+		rru->user()->putObject(
+			sel,
+			rru->user_att(),
+			rru->user_idx()
+			);
+		rose_put_nested_object((RoseUnion*)sel, obj);
+	}
+	if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) return 0;
+	else{
+		rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
+	}
+	return 0;
+}
+
 //Takes in a reference and a design. 
 //Finds the file referenced, opens it, gets the referenced line and all of its children, puts them in the output design, removes the reference in output (if found)
 //Returns:
@@ -162,43 +186,20 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
 	do
 	{
-		if (rru == NULL) break;
-		//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() << std::endl;
-
-		if (rru->user_att()->isSelect()) {
-			
-			RoseDomain * selectdomain = rru->user_att()->slotDomain();
-			RoseObject * sel = rru->user()->design()->pnewInstance(selectdomain);
-			rru->user()->putObject(
-				sel,
-				rru->user_att(),
-				rru->user_idx()
-				);
-			rose_put_nested_object((RoseUnion*)sel, obj);
-		}
-		if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) continue;
-		else{
-			rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
-		}
+		int rrureturn=ResolveRRU(rru,obj);
+		if (-1 == rrureturn) break;
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
 
-	DictionaryOfRoseObject * anchors = child->nameTable(); //Check if the reference was used in the list of anchors.
-	int anchorssize = anchors->listOfValues()->size();
-	for (unsigned i = 0; i < anchorssize; i++)
+	DictionaryOfRoseObject * anchors = output->nameTable();
+	for (unsigned i = 0, sz = anchors? anchors->size():0; i < sz; i++)
 	{
-		//anchors->listOfValues() is the RoseObject pointed to by the anchor. If it is local, then the design will be child. 
-		//We want to find the external ones that use the same reference as the one we resolved and change them.
-		RoseObject * anch = anchors->listOfValues()->get(i);
-		if (anch==obj)	
+		if (anchors->listOfValues()->get(i) == ref)
 		{
-			std::cout << anchors->listOfKeys()->get(i) << " is pointing to this thing we are at EID: " << anch->entity_id() <<"which is a " <<anch->className()<<'\n';
-			anchors->add(anchors->listOfKeys()->get(i),obj);	//obj is the thing we resolved the reference to.
+			anchors->add(anchors->listOfKeys()->get(i), obj);
 		}
 	}
-	//child->save();
 	return 0;
 }
-
 
 int parsecmdline(int argc, char*argv[], std::string &infilename, std::string &outfilename)
 {
@@ -292,6 +293,7 @@ int main(int argc, char* argv[])
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 	RoseP21Writer::preserve_eids = ROSE_TRUE;
+	RoseP21Writer::sort_eids = ROSE_TRUE;
 	//Find if the input file is in a directory, so we can go to there. Fixes some weirdness with directories.
 	if (infilename.find_last_of('\\') || infilename.find_last_of('/'))
 	{

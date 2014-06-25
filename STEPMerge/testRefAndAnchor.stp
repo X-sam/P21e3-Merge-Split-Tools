@@ -10,25 +10,25 @@ FILE_DESCRIPTION(
 
 FILE_NAME(
 /* name */ 'testRefAndAnchor',
-/* time_stamp */ '2014-06-25T08:38:53-04:00',
+/* time_stamp */ '2014-06-25T13:41:48-04:00',
 /* author */ (''),
 /* organization */ (''),
 /* preprocessor_version */ 'ST-DEVELOPER v16',
 /* originating_system */ '',
 /* authorisation */ '');
 
-FILE_SCHEMA (('STEP_MERGED_CAD_SCHEMA'));
+FILE_SCHEMA (('AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 }'));
 ENDSEC;
 
 ANCHOR;
-<ParentAnchor>=#11;
+<ParentAnchor>=#123;
 ENDSEC;
 
 REFERENCE;
-#11=<testAnchorAndData.stp#TestAnchor>;
+#123=<testAnchorAndData.stp#TestAnchor>;
 ENDSEC;
 
 DATA;
-#10=CIRCULAR_AREA('testarea',#11,2.);
+#1=CIRCULAR_AREA('testarea',#123,2.);
 ENDSEC;
 END-ISO-10303-21;

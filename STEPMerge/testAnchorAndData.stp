@@ -10,21 +10,21 @@ FILE_DESCRIPTION(
 
 FILE_NAME(
 /* name */ 'testAnchorAndData',
-/* time_stamp */ '2014-06-25T08:38:53-04:00',
+/* time_stamp */ '2014-06-25T13:41:48-04:00',
 /* author */ (''),
 /* organization */ (''),
 /* preprocessor_version */ 'ST-DEVELOPER v16',
 /* originating_system */ '',
 /* authorisation */ '');
 
-FILE_SCHEMA (('STEP_MERGED_CAD_SCHEMA'));
+FILE_SCHEMA (('AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 }'));
 ENDSEC;
 
 ANCHOR;
-<TestAnchor>=#10;
+<TestAnchor>=#321;
 ENDSEC;
 
 DATA;
-#10=CARTESIAN_POINT('TestPoint',(1.01,2.01,3.01));
+#321=CARTESIAN_POINT('TestPoint',(1.01,2.01,3.01));
 ENDSEC;
 END-ISO-10303-21;
