@@ -704,7 +704,6 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 		if (reference[i] == masDir[i]){
 			while (slashpos <= i){
 				slashpos = reference.find("/",slashpos+1);
-				std::cout << slashpos << ": " << reference << "\n" << slashpos << ": " << masDir << "\n\n";
 			}
 		}
 	}
@@ -951,19 +950,6 @@ std::string makeDirforAssembly(stp_product_definition * pd, std::string dir){
 	return dir;
 }
 
-void makeAnchors(RoseDesign * dst){ //change name to drop anchor
-	RoseCursor curse;
-	curse.traverse(dst);
-	curse.domain(ROSE_DOMAIN(RoseObject));
-	RoseObject* obj;
-
-	while (obj = curse.next()){
-		MyPDManager* mgr = MyPDManager::find(obj);
-		if (mgr){
-			dst->addName(mgr->getAnchorName().c_str(), obj);
-		}
-	}
-}
 ///<summary>
 ///
 ///</summary>
