@@ -3,6 +3,7 @@
 #include <rose.h>
 #include <rose_p28.h>
 #include <stp_schema.h>
+#include <string>
 
 class MyURIManager : public RoseManager {
 protected:
@@ -33,6 +34,10 @@ private:
 	RoseDesign*						childDes;
 	stp_product_definition*			childPD;
 	RoseReference*					real_ref = NULL;
+	RoseObject*						anchored = NULL;
+	std::string						anchorName;
+	RoseReference *					isref = NULL;
+
 public:
 
 	ROSE_DECLARE_MANAGER_COMMON();
@@ -41,7 +46,17 @@ public:
 	RoseReference * should_point_to()	{ return real_ref; }
 
 	void hasChild(stp_product_definition * c)	{ childPD = c; }
-	void hasChildIn(RoseDesign * d)	{ childDes = d; }
+	void refisin(RoseDesign * d)				{ childDes = d; }
+	RoseDesign * hasrefinit()					{ return childDes; }
+
+	void setAnchor(RoseObject* a)		{ anchored = a; }
+	RoseObject* getAnchoredObj()		{ return anchored; }
+
+	void nameAnchor(std::string s)		{ anchorName = s; }
+	std::string getAnchorName()			{ return anchorName; }
+
+	void setRefforAnchor(RoseReference * r)		{ isref = r; }
+	RoseReference* getRef()				{ return isref;	}
 
 	MyPDManager() { childPD = NULL; childDes = NULL; }
 

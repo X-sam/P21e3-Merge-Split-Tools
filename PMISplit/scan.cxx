@@ -81,7 +81,23 @@ void scan_select_pointers(RoseObject * object)
 		scan_pointer(object, att, 0);
 }
 
+void scan_anchors(
+	DictionaryOfRoseObject * anchors
+	)
+{
+	for (int i = 0; i < anchors->size(); i++)
+	{
+		RoseObject *anchor= anchors->listOfValues()->get(i);
+		if (!anchor) continue;
 
+		MyURIManager * mgr = MyURIManager::find(anchor);
+		if (!mgr) continue;
+
+		RoseReference * ref = mgr->should_go_to_uri();
+		anchors->put(anchors->listOfKeys()->get(i), ref);
+		//print_ref_use("hi", ref);
+	}
+}
 
 void update_uri_forwarding(RoseDesign * design)
 {
@@ -102,6 +118,10 @@ void update_uri_forwarding(RoseDesign * design)
 	objects.traverse(design);
 	objects.domain(ROSE_DOMAIN(RoseUnion));
 	while ((obj = objects.next()) != 0) scan_select_pointers(obj);
+
+	auto anchors = design->nameTable();
+	if(anchors){ scan_anchors(anchors); }
+
 }
 
 
