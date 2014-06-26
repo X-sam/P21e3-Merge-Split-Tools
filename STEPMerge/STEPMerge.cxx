@@ -29,8 +29,7 @@ int MoveAllReferences(RoseDesign *design, std::string workingdir);
 //Takes object, puts itself and all of its children in the output design
 int PutItem(RoseObject *obj, RoseDesign* output)
 {
-	RoseDesign * child = obj->design();
-	if (child == output) return 0;	//If the design of object is the output design, we are already done.
+	if (obj->design() == output) return 0;	//If the design of object is the output design, we are already done.
 	obj->move(output, INT_MAX, FALSE);
 	return 1;
 }
@@ -187,7 +186,10 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 	do
 	{
 		int rrureturn=ResolveRRU(rru,obj);
-		if (-1 == rrureturn) break;
+		if (-1 == rrureturn)
+		{
+			break;
+		}
 	} while (rru = rru->next_for_ref());	//Do this for anything that uses the reference.
 
 	DictionaryOfRoseObject * anchors = output->nameTable();
@@ -254,7 +256,7 @@ int MoveAllReferences(RoseDesign *design, const std::string workingdir)	//Given 
 		//std::cout << ROSE_CAST(RoseReference, obj)->uri() <<std::endl;
 		//Pass the reference to AddItem, which will open the associated file 
 		//& handle adding the referenced item & its children to design.
-		std::cout << "reference no. " << obj->entity_id() <<'\n';
+//		std::cout << "reference no. " << obj->entity_id() <<'\n';
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design, workingdir);
 		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
 		{
@@ -292,7 +294,7 @@ int main(int argc, char* argv[])
 	out = fopen("log.txt", "w");
 	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
-	RoseP21Writer::preserve_eids = ROSE_TRUE;
+//	RoseP21Writer::preserve_eids = ROSE_TRUE;
 	RoseP21Writer::sort_eids = ROSE_TRUE;
 	//Find if the input file is in a directory, so we can go to there. Fixes some weirdness with directories.
 	if (infilename.find_last_of('\\') || infilename.find_last_of('/'))
