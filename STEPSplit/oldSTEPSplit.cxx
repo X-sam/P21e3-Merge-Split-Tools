@@ -19,10 +19,12 @@
 
 #pragma comment(lib,"stpcad_stix.lib")
 
-void handleAggregate(RoseObject * obj, std::string dir, int* counter);
+int counter;
 
-void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject* dst_list, std::string dir, int* counter);
-RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir, int* counter);
+void handleAggregate(RoseObject * obj, std::string dir = "");
+
+void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject* dst_list, std::string dir = "" );
+RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 void backToSource(RoseDesign * ProdOut, RoseDesign * src);
 int PutOutHelper(stp_next_assembly_usage_occurrence * nauo, std::string dir = "", bool outPD = true);
 int splitFromSubAssem(RoseDesign *subMaster, std::string dir = "", bool mkDir = false);
@@ -690,14 +692,14 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)/
 	return NULL;
 }
 
-RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir, int* counter){ //obj from output file, and master file for putting refs into
+RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	//std::cout << "\n\nProdOut: " << ProdOut->fileDirectory() << "\nMaster: " << master->fileDirectory() << "\n";
 	unsigned i;
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_");				//"advanced_face_split_item"
 	//if (*counter == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << std::endl; }
 	//std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << "\t";
-	anchor.append(std::to_string(*counter));	//ex. "advanced_face_split_item123"
+	anchor.append(std::to_string(::counter));	//ex. "advanced_face_split_item123"
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
 	std::string masDir(master->fileDirectory());
 	int slashpos = reference.find("/");
@@ -720,7 +722,8 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
 	ProdOut->addName(anchor.c_str(), obj);
-	(*counter)++;
+	std::cout << obj->design()->name() << std::endl;
+	(::counter)++;
 	return ref;
 }
 ///<summary>
@@ -758,7 +761,7 @@ bool hasAnchorinSource(RoseObject* obj, RoseDesign* source){
 	return(false);
 }
 
-void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * dst_list, std::string dir, int* counter){ //RoseDesign * destination
+void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * dst_list, std::string dir){ //RoseDesign * destination
 	RoseMark child = rose_mark_begin();	//Mark is used by handleEntity to decide if a RoseObject has had its reference/anchor pair added to the list already.
 	RoseMark pd_ref = rose_mark_begin();
 	RoseMark sh_rep = rose_mark_begin();
@@ -773,29 +776,31 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 	for (i = 0; i < source_list->size(); i++){
 		obj = dst_list->get(i); //new design
 		obj2 = source_list->get(i); //origional design
+		MyPDManager * mgr = MyPDManager::make(obj2);
+		mgr->setDst(obj);
 		rose_mark_set(obj2);
+		rose_mark_set(obj);
 
-		if (obj->domain()->typeIsSelect()){
-
-		}
-		if (obj->domain()->typeIsAggregate()){
-
-		}
-
-	}
-
-
-
-
-
-
-	for (i = 0, sz = dst_list->size(); i < sz; i++){
-		obj = dst_list->get(i);
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
 		if (Parents.size() == 0){
-			rose_mark_set(obj); std::cout << " successfully marked " << obj->design()->name() << "\n";
-			addRefAndAnchor(obj, dst, src, dir, counter);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
+			//rose_mark_set(obj); std::cout << " successfully marked " << obj->design()->name() << "\n";
+			addRefAndAnchor(obj, dst, src, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
+		}
+		
+		for (unsigned k = 0, p = Parents.size(); k < p; k++){
+			if (Parents[k]->design()->name() != obj->design()->name()){
+				std::cout << "\nBINGO\n";
+			}
+		}
+	}
+
+	DictionaryOfRoseObject * anchors; //IMPORTANT: marks anchored objects to be given references 
+	anchors = src->nameTable();
+	if (anchors) {
+		for (unsigned i = 0; i < anchors->size(); i++) {
+			RoseObject *anchor = anchors->listOfValues()->get(i);
+			rose_mark_set(anchor); //marks anchor to be found in while loop
 		}
 	}
 
@@ -818,67 +823,53 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 				childobj = rose_get_nested_object(ROSE_CAST(RoseUnion, obj->getObject(att)));
 			}
 			if (att->isAggregate()){	//An aggregate! We have a whole function dedicated to this case.
-				handleAggregate(obj->getObject(att), dir, counter);
+				handleAggregate(obj->getObject(att), dir);
 				continue;				//handleAggregate manages everything so we can just skip the next bits and move on to the next attribute.
 			}
 			if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 
 			//mark shape_reps & prod_defs after they have refernce assigned to them 
-			if (!rose_is_marked(childobj)){
-				for (i = 0, sz = source_list->size(); i < sz; i++){
-					RoseObject * tmp = source_list->get(i);
-					if (tmp == childobj){
-						std::cout << tmp->domain()->name() << ", " << childobj->domain()->name() << "\n";
-						childobj = dst_list->get(i);
-						break;
-					}
-				}
-			}
-			if (i == sz - 1){ std::cout << "\n\tSomething went wrong. Investigate.\n"; continue; }
-
-			if (!rose_is_marked(childobj, child)){	//If this all is true, time to create a reference/anchor pair and mark childobj     childobj->design() != obj->design()		&& !rose_is_marked(childobj, child)
-
-				if (rose_is_marked(childobj)){
+			if (rose_is_marked(childobj)){ //ignore if not in new design
+				if (!rose_is_marked(childobj, child)){	//If this all is true, time to create a reference/anchor pair and mark childobj     childobj->design() != obj->design()		&& !rose_is_marked(childobj, child)
+					
 					std::cout << "Check all marks\n\tsh_rep: " << rose_is_marked(childobj, sh_rep) << "\n\tpd_ref: " << rose_is_marked(childobj, pd_ref) << "\n";
-				}
 
-				if (i == sz - 1){ std::cout << "\n\tSomething went wrong. Investigate.\n"; }
-
-				if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){
-					if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
-						if (!rose_is_marked(childobj->design(), sh_rep)){
-							MyPDManager * mgr = MyPDManager::make(obj);
-							if (mgr->should_point_to() == NULL){
-								//std::cout << childobj->design()->name() << " AND " << obj->design()->name() << "\n";
-								mgr->setRef(addRefAndAnchor(childobj, dst, src, dir, counter));
-								rose_mark_set(childobj->design(), sh_rep); rose_mark_set(childobj, child);
-								break;
+					if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){
+						if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
+							if (!rose_is_marked(childobj->design(), sh_rep)){
+								MyPDManager * mgr = MyPDManager::make(obj);
+								if (mgr->should_point_to() == NULL){
+									//std::cout << childobj->design()->name() << " AND " << obj->design()->name() << "\n";
+									mgr->setRef(addRefAndAnchor(childobj, dst, src, dir));
+									rose_mark_set(childobj->design(), sh_rep); rose_mark_set(childobj, child);
+									break;
+								}
+								else{ break; };
 							}
-							else{ break; };
+							else{ break; }
 						}
-						else{ break; }
 					}
-				}
-				if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
-					if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
-						if (!rose_is_marked(childobj->design(), pd_ref)){
-							MyPDManager * mgr = MyPDManager::make(obj);
-							if (mgr->should_point_to() == NULL){
-								mgr->setRef(addRefAndAnchor(childobj, dst, src, dir, counter));
-								rose_mark_set(childobj->design(), pd_ref); rose_mark_set(childobj, child);
-								//std::cout << "Set ref to " << mgr->should_point_to()->uri() << "\n";
-								break;
+					if (obj->domain() == ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
+						if (childobj->domain() == ROSE_DOMAIN(stp_product_definition)){
+							if (!rose_is_marked(childobj->design(), pd_ref)){
+								MyPDManager * mgr = MyPDManager::make(obj);
+								if (mgr->should_point_to() == NULL){
+									mgr->setRef(addRefAndAnchor(childobj, dst, src, dir));
+									rose_mark_set(childobj->design(), pd_ref); rose_mark_set(childobj, child);
+									//std::cout << "Set ref to " << mgr->should_point_to()->uri() << "\n";
+									break;
+								}
+								else {
+									//std::cout << mgr->should_point_to()->uri() << "\n";
+									break;
+								}
 							}
-							else {
-								//std::cout << mgr->should_point_to()->uri() << "\n";
-								break;
-							}
+							else{ break; } //addRefAndAnchor(obj, dst, src, dir);
 						}
-						else{ break; } //addRefAndAnchor(obj, dst, src, dir);
 					}
+					rose_mark_set(childobj, child);
+					addRefAndAnchor(childobj, dst, src, dir);
 				}
-				rose_mark_set(childobj, child);
-				addRefAndAnchor(childobj, dst, src, dir, counter);
 			}
 			else{ continue; }
 		}
@@ -910,7 +901,7 @@ addRefAndAnchor(obj, destination, source, dir);	//If an object in destination ha
 }*/
 //}
 
-void handleAggregate(RoseObject * obj, std::string dir, int* counter)
+void handleAggregate(RoseObject * obj, std::string dir)
 {
 	if (obj == NULL) return;	//Sometimes handleEntity passes empty aggregates. Check for that before anything else.
 	if (!obj->attributes()->first()->isObject()) return;	//If the object is not an object (I.E. it's a real or bool etc) then we don't care about it.
@@ -926,15 +917,15 @@ void handleAggregate(RoseObject * obj, std::string dir, int* counter)
 		}
 		if (childobj->isa(ROSE_DOMAIN(RoseAggregate)))
 		{
-			handleAggregate(childobj, dir, counter);	//NESTED AGGREGATES! Call ourself on it.
+			handleAggregate(childobj, dir);	//NESTED AGGREGATES! Call ourself on it.
 			continue;
 		}
-		//std::cout << obj->entity_id() << obj->domain()->name() << "\n\t" << childobj->entity_id() << childobj->domain()->name() << std::endl;
+		
 		if (childobj->design() != obj->design() && !rose_is_marked(childobj))	//If we got here we've got an external reference which needs a reference/anchor pair and a marking.
 		{
 			rose_mark_set(childobj);
 			std::string name(childobj->domain()->name());
-			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir, counter);
+			addRefAndAnchor(childobj, childobj->design(), obj->design(), dir);
 		}
 	}
 }
@@ -960,7 +951,7 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	if (!p) return NULL;	//No product so can't do things right?
 	std::string ProdOutName(p->name());
 	ProdOutName.append("_split_item");
-	ProdOutName.append(std::to_string(p->entity_id()));
+	ProdOutName.append(std::to_string(::counter));
 	ProdOutName = SafeName(ProdOutName);
 	RoseDesign * ProdOut = pnew RoseDesign(ProdOutName.c_str());
 
@@ -975,14 +966,14 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	tag_step_extras(src);
 
 	rose_mark_begin();
-	DictionaryOfRoseObject * anchors;
+	/*DictionaryOfRoseObject * anchors; //IMPORTANT: marks anchored objects to be given references 
 	anchors = src->nameTable();
 	if (anchors) {
 		for (unsigned i = 0; i < anchors->size(); i++) {
 			RoseObject *anchor = anchors->listOfValues()->get(i);
 			rose_mark_set(anchor);
 		}
-	}
+	}*/
 	// Move all of the objects that we need to export over to the
 	// destination design.   It does not care where aggregates are though.
 	ListOfRoseObject forProdOut;
@@ -1021,9 +1012,8 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	}*/
 
 	std::cout << "list moved " << count << " objects." << std::endl;
-	int counter = 0;
 	std::cout << forProdOut[0]->design()->name() << ", " << listy->get(0)->design()->name() << "\n";
-	MakeReferencesAndAnchors(&forProdOut, listy, dir, &counter);
+	MakeReferencesAndAnchors(&forProdOut, listy, dir);
 	//MakeReferencesAndAnchors(src, ProdOut, dir);
 	rose_mark_end();
 	return ProdOut;
@@ -1093,7 +1083,7 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 		}
 		} NOW CHECKED FOR IN PUTOUT :d
 		///////////*/
-		std::cout << "\tMoving objects from " << dst->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
+		std::cout << "\tMoving objects from " << dst->name() << ", " << dst->name() << " back to source " << src->name() << std::endl;
 		//backToSource(dst, src); //allows multiple items of the same geometry to exist
 	}
 	else {
