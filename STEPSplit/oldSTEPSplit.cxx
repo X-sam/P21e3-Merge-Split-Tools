@@ -695,8 +695,8 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	unsigned i;
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_");				//"advanced_face_split_item"
-	if (*counter == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << std::endl; }
-	std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << std::endl;
+	//if (*counter == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << std::endl; }
+	//std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << "\t";
 	anchor.append(std::to_string(*counter));	//ex. "advanced_face_split_item123"
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
 	std::string masDir(master->fileDirectory());
@@ -758,22 +758,58 @@ bool hasAnchorinSource(RoseObject* obj, RoseDesign* source){
 	return(false);
 }
 
-void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * dst_list , std::string dir, int* counter){ //RoseDesign * destination
+void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * dst_list, std::string dir, int* counter){ //RoseDesign * destination
 	RoseMark child = rose_mark_begin();	//Mark is used by handleEntity to decide if a RoseObject has had its reference/anchor pair added to the list already.
 	RoseMark pd_ref = rose_mark_begin();
 	RoseMark sh_rep = rose_mark_begin();
-	RoseObject *obj;
+	//rose_mark_begin();
+	RoseDesign* src = source_list->get(0)->design();
+	RoseDesign* dst = dst_list->get(0)->design();
+	if (dst == src) { return; }
+	RoseObject * obj, *obj2;
 	unsigned i, sz;
 	RoseCursor curse;
-	std::cout << "sauce: " << source_list->get(0)->design()->name() << " dst: " << dst_list->get(0)->design()->name() << "\n";
-	curse.traverse(source_list->get(0)->design());
+	ListOfRoseObject Parents;
+	for (i = 0; i < source_list->size(); i++){
+		obj = dst_list->get(i); //new design
+		obj2 = source_list->get(i); //origional design
+		rose_mark_set(obj2);
+
+		if (obj->domain()->typeIsSelect()){
+
+		}
+		if (obj->domain()->typeIsAggregate()){
+
+		}
+
+	}
+
+
+
+
+
+
+	for (i = 0, sz = dst_list->size(); i < sz; i++){
+		obj = dst_list->get(i);
+		Parents.emptyYourself();
+		obj->usedin(NULL, NULL, &Parents);
+		if (Parents.size() == 0){
+			rose_mark_set(obj); std::cout << " successfully marked " << obj->design()->name() << "\n";
+			addRefAndAnchor(obj, dst, src, dir, counter);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
+		}
+	}
+
+	std::cout << "sauce: " << src->name() << " dst: " << dst->name() << "\n";
+	curse.traverse(src);
 	curse.domain(ROSE_DOMAIN(RoseStructure));	//We are only interested in actual entities, so we set our domain to that.*/
 	while (obj = curse.next()) { //traverse entities in source   for (i = 0, sz = source_list->size(); i<sz; i++
 		//<handleEntity(obj, dir);>
 		//obj = source_list->get(i);
+		if (rose_is_marked(obj)){ continue; }
 		auto atts = obj->attributes();	//We will check all the attributes of obj to see if any of them are external references.
 		for (unsigned int i = 0; i < atts->size(); i++) {
 			RoseAttribute *att = atts->get(i);
+			if (rose_is_marked(att)){ std::cout << "life jsut got east\n\n\n"; }
 			RoseObject * childobj = 0;
 			if (att->isEntity()){	//Easy mode. attribute is an entity so it will be a single roseobject.
 				childobj = obj->getObject(att);
@@ -787,30 +823,34 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 			}
 			if (!childobj) continue;	//Remember that case with the select? Confirm we have a childobj here.
 
-			for (i = 0, sz = source_list->size(); i < sz; i++){
-				if (source_list->get(i) == childobj){
-					childobj = dst_list->get(i);
-				}
-			}
-			if (i == sz - 1){ std::cout << "\n\tSomething went wrong. Investigate.\n"; continue; }
-
-			if (!rose_is_marked(obj) && !rose_is_marked(childobj, child)){	//If this all is true, time to create a reference/anchor pair and mark childobj     childobj->design() != obj->design()
-				//mark shape_reps & prod_defs after they have refernce assigned to them 
+			//mark shape_reps & prod_defs after they have refernce assigned to them 
+			if (!rose_is_marked(childobj)){
 				for (i = 0, sz = source_list->size(); i < sz; i++){
-					if (source_list->get(i) == childobj){
+					RoseObject * tmp = source_list->get(i);
+					if (tmp == childobj){
+						std::cout << tmp->domain()->name() << ", " << childobj->domain()->name() << "\n";
 						childobj = dst_list->get(i);
 						break;
 					}
 				}
-				if (i == sz-1){ std::cout << "\n\tSomething went wrong. Investigate.\n"; }
+			}
+			if (i == sz - 1){ std::cout << "\n\tSomething went wrong. Investigate.\n"; continue; }
+
+			if (!rose_is_marked(childobj, child)){	//If this all is true, time to create a reference/anchor pair and mark childobj     childobj->design() != obj->design()		&& !rose_is_marked(childobj, child)
+
+				if (rose_is_marked(childobj)){
+					std::cout << "Check all marks\n\tsh_rep: " << rose_is_marked(childobj, sh_rep) << "\n\tpd_ref: " << rose_is_marked(childobj, pd_ref) << "\n";
+				}
+
+				if (i == sz - 1){ std::cout << "\n\tSomething went wrong. Investigate.\n"; }
 
 				if (obj->domain() == ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship)){
 					if (childobj->domain() == ROSE_DOMAIN(stp_shape_representation)){
 						if (!rose_is_marked(childobj->design(), sh_rep)){
 							MyPDManager * mgr = MyPDManager::make(obj);
 							if (mgr->should_point_to() == NULL){
-								std::cout << childobj->design()->name() << "\n";
-								mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir, counter));
+								//std::cout << childobj->design()->name() << " AND " << obj->design()->name() << "\n";
+								mgr->setRef(addRefAndAnchor(childobj, dst, src, dir, counter));
 								rose_mark_set(childobj->design(), sh_rep); rose_mark_set(childobj, child);
 								break;
 							}
@@ -824,49 +864,51 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 						if (!rose_is_marked(childobj->design(), pd_ref)){
 							MyPDManager * mgr = MyPDManager::make(obj);
 							if (mgr->should_point_to() == NULL){
-								mgr->setRef(addRefAndAnchor(childobj, childobj->design(), obj->design(), dir, counter));
+								mgr->setRef(addRefAndAnchor(childobj, dst, src, dir, counter));
 								rose_mark_set(childobj->design(), pd_ref); rose_mark_set(childobj, child);
 								//std::cout << "Set ref to " << mgr->should_point_to()->uri() << "\n";
 								break;
 							}
-							else { 
+							else {
 								//std::cout << mgr->should_point_to()->uri() << "\n";
-								break; }
+								break;
+							}
 						}
 						else{ break; } //addRefAndAnchor(obj, dst, src, dir);
 					}
 				}
 				rose_mark_set(childobj, child);
-				addRefAndAnchor(childobj, childobj->design(), obj->design(), dir, counter);
+				addRefAndAnchor(childobj, dst, src, dir, counter);
 			}
 			else{ continue; }
 		}
 		///</handleEntity>
 	}
+	//rose_mark_end();
 	rose_mark_end(child);
 	rose_mark_end(pd_ref);
 	rose_mark_end(sh_rep);
 
-	for (i = 0, sz = dst_list->size(); i < sz; i++){
+	/*for (i = 0, sz = dst_list->size(); i < sz; i++){
 		RoseObject* derp;
 		derp = dst_list->get(i);
 		if (rose_is_marked(derp)){
-			std::cout << derp->design()->name() << "\n";
-			addRefAndAnchor(derp, dst_list->get(0)->design(), source_list->get(0)->design(), dir, counter);
-		}
-	}
-	/*
-	curse.traverse(destination);
-	curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
-	ListOfRoseObject Parents;
-	while (obj = curse.next()) {
-		Parents.emptyYourself();
-		obj->usedin(NULL, NULL, &Parents);
-		if (Parents.size() == 0) {// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
-			addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
-		}
-	}*/
+		std::cout << derp->design()->name() << "\t";
+		addRefAndAnchor(derp, dst_list->get(0)->design(), source_list->get(0)->design(), dir, counter);
+		}*/
 }
+/*
+curse.traverse(destination);
+curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
+ListOfRoseObject Parents;
+while (obj = curse.next()) {
+Parents.emptyYourself();
+obj->usedin(NULL, NULL, &Parents);
+if (Parents.size() == 0) {// || obj->domain() == ROSE_DOMAIN(stp_product_definition))
+addRefAndAnchor(obj, destination, source, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
+}
+}*/
+//}
 
 void handleAggregate(RoseObject * obj, std::string dir, int* counter)
 {
@@ -955,32 +997,32 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 			count++;
 		}
 	}
-	
+
 	RoseObject* inProdOut;
 	inProdOut = forProdOut.copy(ProdOut, INT_MAX);
-	ListOfRoseObject* listy = ROSE_CAST(ListOfRoseObject, inProdOut); 
-	unsigned i;
+	ListOfRoseObject* listy = ROSE_CAST(ListOfRoseObject, inProdOut);
+	/*unsigned i;
 	ListOfRoseObject Parents;
-	
-	for (i = 0; i < listy->size(); i++){
-		obj = listy->get(i); //listy is new design
-		obj2 = forProdOut.get(i); //origional design
-		if (rose_is_marked(obj2)){
-			rose_mark_set(obj); //mark obj in listy
-			//std::cout << listy->domain()->name() << " has " << forProdOut.get(i)->domain()->name() << "\n";
-		}
-		else { 
-			//std::cout << "\tMarked: " << forProdOut.get(i)->domain()->name() << forProdOut.get(i)->entity_id() << "\n";
-			rose_mark_set(obj2); 
-		}
-		Parents.emptyYourself();
-		obj2->usedin(NULL, NULL, &Parents);
-		if (Parents.size() == 0){ rose_mark_set(obj); }
-	}
 
-	
+	for (i = 0; i < listy->size(); i++){
+	obj = listy->get(i); //listy is new design
+	obj2 = forProdOut.get(i); //origional design
+	if (rose_is_marked(obj2)){
+	rose_mark_set(obj); //mark obj in listy
+	//std::cout << listy->domain()->name() << " has " << forProdOut.get(i)->domain()->name() << "\n";
+	}
+	else {
+	//std::cout << "\tMarked: " << forProdOut.get(i)->domain()->name() << forProdOut.get(i)->entity_id() << "\n";
+	rose_mark_set(obj2);
+	}
+	Parents.emptyYourself();
+	obj2->usedin(NULL, NULL, &Parents);
+	if (Parents.size() == 0){ rose_mark_set(obj); }
+	}*/
+
 	std::cout << "list moved " << count << " objects." << std::endl;
 	int counter = 0;
+	std::cout << forProdOut[0]->design()->name() << ", " << listy->get(0)->design()->name() << "\n";
 	MakeReferencesAndAnchors(&forProdOut, listy, dir, &counter);
 	//MakeReferencesAndAnchors(src, ProdOut, dir);
 	rose_mark_end();
@@ -1046,9 +1088,9 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 		curse.traverse(dst);
 		curse.domain(ROSE_DOMAIN(RoseStructure));
 		while (obj = curse.next()){
-			if (hasAnchorinSource(obj, src)){
-				addRefAndAnchor(obj, dst, src, dir);
-			}
+		if (hasAnchorinSource(obj, src)){
+		addRefAndAnchor(obj, dst, src, dir);
+		}
 		} NOW CHECKED FOR IN PUTOUT :d
 		///////////*/
 		std::cout << "\tMoving objects from " << dst->name() << ", " << pd->design()->name() << " back to source " << src->name() << std::endl;
@@ -1069,14 +1111,14 @@ int PutOutHelper(stp_next_assembly_usage_occurrence *nauo, std::string dir, bool
 			curse.traverse(tmp);
 			curse.domain(ROSE_DOMAIN(RoseStructure));
 			while (obj = curse.next()){
-				if (hasAnchorinSource(obj, src)){
-					addRefAndAnchor(obj, tmp, src, dir);
-				}
+			if (hasAnchorinSource(obj, src)){
+			addRefAndAnchor(obj, tmp, src, dir);
+			}
 			} NOW CHECKED FOR IN PUTOUT :d
 			////////*/
 			//update_uri_forwarding(tmp);
 			tmp->save();
-			
+
 			//backToSource(pd->design(), src);
 		}
 		else {
