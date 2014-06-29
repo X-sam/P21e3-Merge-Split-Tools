@@ -49,13 +49,13 @@ void scan_aggregate_pointers(RoseObject * object)
 	RoseAggregate * agg = (RoseAggregate*)object;  // no virtual base
 	ListOfRoseAttribute *  atts = object->domain()->typeAttributes();
 	RoseAttribute * att = atts->first();
-	unsigned i, sz;
+unsigned i, sz;
 
-	if (!att->isObject())
-		return;
+if (!att->isObject())
+return;
 
-	for (i = 0, sz = agg->size(); i < sz; i++)
-		scan_pointer(object, att, i);
+for (i = 0, sz = agg->size(); i < sz; i++)
+	scan_pointer(object, att, i);
 }
 
 
@@ -81,11 +81,7 @@ void scan_select_pointers(RoseObject * object)
 		scan_pointer(object, att, 0);
 }
 
-
-
-void scan_anchors(
-	DictionaryOfRoseObject * anchors
-	)
+void scan_anchors(DictionaryOfRoseObject * anchors)
 {
 	for (int i = 0; i < anchors->size(); i++)
 	{
@@ -96,8 +92,6 @@ void scan_anchors(
 		if (!mgr) continue;
 
 		RoseReference * ref = mgr->should_go_to_uri();
-		if (!ref) continue;
-		if (anchors->design() == anchor->design()) continue;
 		anchors->put(anchors->listOfKeys()->get(i), ref);
 		//print_ref_use("hi", ref);
 	}
@@ -129,8 +123,6 @@ void update_uri_forwarding(RoseDesign * design)
 }
 
 
-
-
 ROSE_IMPLEMENT_MANAGER_COMMON(MyURIManager);
 
 MyURIManager * MyURIManager::find(RoseObject * obj)
@@ -143,24 +135,6 @@ MyURIManager * MyURIManager::make(RoseObject * obj)
 	MyURIManager* mgr = MyURIManager::find(obj);
 	if (!mgr) {
 		mgr = new MyURIManager;
-		obj->add_manager(mgr);
-	}
-	return mgr;
-}
-
-
-ROSE_IMPLEMENT_MANAGER_COMMON(MyPDManager);
-
-MyPDManager * MyPDManager::find(RoseObject * nauo)
-{
-	return (MyPDManager*)(nauo ? nauo->find_manager(type()) : 0);
-}
-
-MyPDManager * MyPDManager::make(RoseObject * obj)
-{
-	MyPDManager* mgr = MyPDManager::find(obj);
-	if (!mgr) {
-		mgr = new MyPDManager;
 		obj->add_manager(mgr);
 	}
 	return mgr;

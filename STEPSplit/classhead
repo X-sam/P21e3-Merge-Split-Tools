@@ -1,0 +1,22 @@
+##Classhead is just the top of the Classmap.h file.
+##Made as a separate file rather than baked into ClassMapGenerator.py to allow for easier manipulation if necessary.
+##
+##Made By Samson
+##
+##6/29/2014
+//Classmap.h defines ARMCastLookupTable
+//Because ARM_CAST macro doesn't work with templates, we need a way to get from a class name to the ARMCastTo.. for it.
+//This is accomplished by doing a lookup in the map of the name of the class, whose value will be a function pointer to the proper ARMCastTo... function.
+//
+//Composed by Samson
+//
+//6/27/2014
+
+#include <map>
+#include <string>
+#include <ARM.h>
+#pragma once
+
+//Fill a table with all the ARM classes and a function pointer to their ARMCastTo... function.
+static const std::map <std::string, void*> ARMCastLookupTable
+{

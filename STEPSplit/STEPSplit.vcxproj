@@ -35,10 +35,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="oldSTEPSplit.cxx" />
+    <ClCompile Include="STEPSplit.cxx" />
     <ClCompile Include="scan.cxx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ARMRange.h" />
+    <ClInclude Include="classmappy.h" />
     <ClInclude Include="scan.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -54,7 +56,7 @@
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v110</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ConfigurationType>Application</ConfigurationType>
@@ -116,18 +118,24 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stix;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpcad;$(ROSE_INCLUDE)/stpcad_arm</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stix;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpman;$(ROSE_INCLUDE)/stpman_arm</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ROSE)\lib\i86_win32_vc11_md</AdditionalLibraryDirectories>
-      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpcad_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
     </Link>
     <BuildLog>
       <Path>C:\tmp\$(MSBuildProjectName).log</Path>
     </BuildLog>
+    <PreBuildEvent>
+      <Command>ClassMapGenerator.py</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Make classmappy.h</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <ClCompile>
@@ -142,7 +150,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ROSE)\lib\x64_win64_vc12_md</AdditionalLibraryDirectories>
-      <AdditionalDependencies>stpcad.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpcad_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>stpman.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpman_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
     </Link>
   </ItemDefinitionGroup>
