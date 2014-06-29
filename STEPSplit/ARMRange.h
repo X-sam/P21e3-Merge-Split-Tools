@@ -37,7 +37,7 @@ public:
 		ARMCursor cursor;
 		ARMRange* range;
 		T* current;
-
+		ARMCastPtr fp;
 		//ITERATOR IMPLEMENTATION
 		//Modeled after boost::iterator_facade
 		//http://www.boost.org/doc/libs/1_55_0/libs/iterator/doc/iterator_facade.html
@@ -55,11 +55,8 @@ public:
 		}
 
 		//Cast the ARMObject to the underlying type. 
-		//We need to lookup the ARMCast function for the class, so we check the lookup table using the class name to get a pointer to the corresponding ARMCastTo... function.
 		T* iter_ARM_cast(ARMObject* object)
 		{
-			T* (*fp)(ARMObject *) = (T*(*)(ARMObject*)) ARMCastLookupTable.at(current->getModuleName());
-
 			return static_cast<T*> (fp(object));
 		}
 
@@ -85,9 +82,10 @@ public:
 			cursor.domain(range->type);
 
 
-			//Need initial increment to get the first next()
 			T *dumy = T::newInstance(rose_trash());
-			current = dumy;
+			//We need to lookup the ARMCast function for the class, so we check the lookup table using the class name to get a pointer to the corresponding ARMCastTo... function.
+			fp = ARMCastLookupTable.at(dumy->getModuleName());
+			//Need initial increment to get the first next()
 			increment();
 		}
 
