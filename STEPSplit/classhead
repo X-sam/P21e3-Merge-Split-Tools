@@ -18,5 +18,6 @@
 #pragma once
 
 //Fill a table with all the ARM classes and a function pointer to their ARMCastTo... function.
-static const std::map <std::string, void*> ARMCastLookupTable
+typedef void*(*ARMCastPtr)(ARMObject*);
+static const std::map <std::string, ARMCastPtr> ARMCastLookupTable
 {
