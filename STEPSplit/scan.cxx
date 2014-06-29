@@ -83,7 +83,7 @@ void scan_select_pointers(RoseObject * object)
 
 void scan_anchors(DictionaryOfRoseObject * anchors)
 {
-	for (int i = 0; i < anchors->size(); i++)
+	for (unsigned i = 0; i < anchors->size(); i++)
 	{
 		RoseObject *anchor = anchors->listOfValues()->get(i);
 		if (!anchor) continue;
