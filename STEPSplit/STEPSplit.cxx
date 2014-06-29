@@ -88,14 +88,12 @@ int main(int argc, char* argv[])
 	unsigned sub_count = root->size_its_components();
 
 	mBomSplit(root, true, outfile_directory, outfile_directory.c_str());
-	delete root;
 	return EXIT_SUCCESS;
 }
 
 bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth)
 {
 	std::cout << "\n\nMaking directory " << path <<"\n";
-
 	rose_mkdir(path.c_str());
 
 	// make directory for all the geometry components
@@ -227,35 +225,39 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 Workpiece *find_root_workpiece(RoseDesign *des)
 {
 	// find root workpiece or complain
-	ListOfRoseObject owned;   // workpieces that have a parent
+	std::vector <stp_product_definition *> owned;   // workpieces that have a parent
 	for (auto i : ARM_RANGE(Workpiece_assembly_component, des))
 	{
 		if (i.get_component())
 		{
-			owned.add(i.get_component());
+			owned.push_back(i.get_component());
 		}
 	}
 
 	Workpiece * root = NULL;
-	for (Workpiece candidate : ARM_RANGE(Workpiece, des))
+	for (auto  &candidate : ARM_RANGE(Workpiece, des))
 	{
 		bool found = false;
-		for (unsigned i = 0; i < owned.size(); i++) {
-			if (owned[i] == candidate.getRoot()) {
-				found = true;
+		auto test = candidate.getRoot();
+		for (auto i : owned) 
+		{
+			if (i == test) {
+				found = true;					//If we are here, then this candidate is in the list of workpieces with a parent. Ergo, it is not root.
 				break;
 			}
 		}
-		if (!found) {
-			if (root != NULL) {
+		if (!found) //If found is false then candidate does not have a parent. There should be only one (like highlander)
+		{
+			if (root != NULL) //Some other candidate got here. That is no good.
+			{
 				std::cout << "Error input has two root assemblies: " << root->get_its_id()
 					<< " and " << candidate.get_its_id() << std::endl;
 				return NULL;
 			}
-			root = new Workpiece(candidate);	//possibility of a memory leak here. Make sure calling function frees this.
+			root = &candidate;
 		}
 	}
-	if (root == NULL) {
+	if (root == NULL) {	//Oh dear. If this is true, then every candidate had parents. Must be a loop in the assemblies.
 		std::cout << "Error input has no root assembly: " << std::endl;
 		return NULL;
 	}
@@ -315,7 +317,9 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	//TODO: break this out.
 	std::string geometry(root_dir);
 	std::string pieceid(piece->get_its_id());
-	geometry = geometry + "/geometry_components/" + piece->get_its_id() + ".stp";
+	geometry += "/geometry_components/";
+	geometry += piece->get_its_id();
+	geometry+= ".stp";
 
 	ListOfRoseObject geo_exports;
 	ListOfRoseObject style_exports;
@@ -356,11 +360,11 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	Workpiece *geo_piece = find_root_workpiece(geo_des);
 
 	std::string pmi_file(stp_file_name);
-	pmi_file = pmi_file + "/pmi.stp";
+	pmi_file += "/pmi.stp";
 
 	RoseDesign *style_des = ROSE.newDesign(pmi_file.c_str());
 	ListOfRoseObject * style_list;
-	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des, 100)); // enough for selects and lists (10 was to few)
+	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des,INT_MAX)); // enough for selects and lists (10 was to few)
 
 	printf("Number of copied objects in style file %s_pmi.stp is %d\n", stp_file_name, style_list->size());
 	delete style_list;  /* Don't want the list itself in the new design */
@@ -370,25 +374,32 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 
 	Styled_geometric_model * new_model = NULL;
 	int style_count = 0;
-	for (auto ssi : ARM_RANGE(Single_styled_item,style_des))
+	//for (auto ssi : ARM_RANGE(Single_styled_item,style_des))
+	ARMCursor cur;
+	cur.traverse(style_des);
+	ARMObject * obj;
+	while (NULL!=(obj = cur.next()))
 	{
+		if (!obj->castToSingle_styled_item())
+			continue;
+		Single_styled_item * ssi = obj->castToSingle_styled_item();
 		if (new_model == NULL) {
 			new_model = Styled_geometric_model::newInstance(style_des);
 			style_des->addName("styles", new_model->getRoot());
 		}
-		new_model->add_its_styled_items(ssi.getRoot());
+		new_model->add_its_styled_items(ssi->getRoot());
 		style_count++;
-		if (ssi.get_its_geometry()) {
-			stp_representation_item *repi = ssi.get_its_geometry();
+		if (ssi->get_its_geometry()) {
+			stp_representation_item *repi = ssi->get_its_geometry();
 			if (!repi->isa(ROSE_DOMAIN(stp_manifold_solid_brep))) {
 				printf("Warning: style found not applied to a manifold solid\n");
 				continue;
 			}
 			RoseReference *manifold = rose_make_ref(style_des, "#manifold_solid_solid_brep");
-			stp_styled_item *style = ssi.getRoot();
+			stp_styled_item *style = ssi->getRoot();
 			rose_put_ref(manifold, style, "item");
 			// garbage collect
-			repi->move(rose_trash(), INT_MAX);
+			repi->move(rose_trash(), -1);
 		}
 	}
 
@@ -401,7 +412,9 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ARMsave(geo_des);
 
 	std::string master_file(stp_file_name);
-	master_file = master_file + "/" +piece->get_its_id() + ".stp";
+	master_file += "/";
+	master_file += piece->get_its_id();
+	master_file += ".stp";
 
 	RoseDesign *master_des = ROSE.newDesign(master_file.c_str());
 
@@ -416,25 +429,27 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	// directory that contains all the geometry
 	std::string prefix("../");
 	for (unsigned i = 0; i < depth; i++)
-		prefix = prefix + "../";
-	prefix = prefix + "geometry_components/" + piece->get_its_id() + ".stp";
+		prefix.append( "../");
+	prefix.append("geometry_components/");
+	prefix.append(piece->get_its_id());
+	prefix.append(".stp");
 
 	std::string man_anchor(prefix);
-	man_anchor = man_anchor + "#manifold_solid_brep";
+	man_anchor.append("#manifold_solid_brep");
 	RoseReference *manifold = rose_make_ref(master_des, man_anchor.c_str());
 	master_des->addName("manifold_solid_brep", manifold);
 	manifold->entity_id(count);
 	count = count + 10;
 
 	std::string shape_anchor(prefix);
-	shape_anchor = shape_anchor + "#shape_representation";
+	shape_anchor.append("#shape_representation");
 	RoseReference *shape_rep = rose_make_ref(master_des, shape_anchor.c_str());
 	master_des->addName("shape_representation", shape_rep);
 	shape_rep->entity_id(count);
 	count = count + 10;
 
 	std::string definition_anchor(prefix);
-	definition_anchor = definition_anchor + "#product_definition";
+	definition_anchor.append("#product_definition");
 	RoseReference *definition = rose_make_ref(master_des, definition_anchor.c_str());
 	master_des->addName("product_definition", definition);
 	definition->entity_id(count);
