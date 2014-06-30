@@ -134,13 +134,17 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 			outfilename = path;
 
 		if (need_nuao) {
-			stp_next_assembly_usage_occurrence *nuao = root->get_its_components(i)->getValue();
-			outfilename.append(SafeName(nuao->name()));
+			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
+			std::string fname(SafeName(nauo->name()));
+			outfilename +=fname;
 		}
 		else
-			outfilename.append(SafeName(child->get_its_id()));
-
-		exported_name.push_back(outfilename.c_str());
+		{
+			std::string fname(SafeName(child->get_its_id()));
+			fname += std::to_string(++filenames[fname]);
+			outfilename += fname;
+		}
+		exported_name.push_back(outfilename);
 		outfilename = outfilename + ".stp";
 		RoseDesign *sub_des = export_workpiece(child, outfilename.c_str(), false);
 		std::cout << "Writing child to file: " << outfilename << std::endl;
@@ -151,7 +155,12 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		exported_children.push_back(exported_child->getRoot());
 
 	}
-
+	for (auto name : exported_name)
+	{
+		auto len = name.find_last_of('/') + 1;
+		auto n= name.substr(len,name.size()-len-1);
+		filenames[n]--;
+	}
 	// Now top level design
 	std::string outfilename;
 	if (path.size() > 0)
@@ -170,9 +179,15 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		Workpiece * exported_child = Workpiece::find(exported_children[i]);
 		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(master_root->get_its_components(i)->getValue());
 		if (comp == NULL) continue;
-
-		std::string dirname(root->get_its_id());
-		dirname = "";   // new strategy is for master to go in same directory as children
+		auto itr = exported_name[i].find_first_of('/');
+		for (unsigned j = 0; j < depth; j++)
+		{
+			itr = exported_name[i].find('/', itr+1);
+		}
+		std::string subname(exported_name[i].begin()+itr+1, exported_name[i].end());
+		std::cout << subname << '\n';
+		std::string dirname(subname);
+		//dirname = "";   // new strategy is for master to go in same directory as children
 
 		stp_product_definition *pd = comp->get_component();
 		stp_product_definition_formation *pdf = pd->formation();
@@ -286,13 +301,11 @@ RoseDesign * export_workpiece(Workpiece * piece, const char * stp_file_name, boo
 	stix_tag_units(new_des);
 	ARMpopulate(new_des);
 
-	Styled_geometric_model * new_model = NULL;
+	auto new_model = Styled_geometric_model::newInstance(new_des);
+
 	int style_count = 0;
 	for (auto i : ARM_RANGE(Single_styled_item, new_des))
 	{
-		if (new_model == NULL) {
-			new_model = Styled_geometric_model::newInstance(new_des);
-		}
 		new_model->add_its_styled_items(i.getRoot());
 		style_count++;
 	}
@@ -318,8 +331,8 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	std::string geometry(root_dir);
 	std::string pieceid(piece->get_its_id());
 	geometry += "/geometry_components/";
-	geometry += piece->get_its_id();
-	geometry+= ".stp";
+	geometry += pieceid;
+	geometry += ".stp";
 
 	ListOfRoseObject geo_exports;
 	ListOfRoseObject style_exports;
@@ -334,12 +347,12 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	//    std::string geo_file (stp_file_name);
 	//    geo_file = geo_file + "/geometry.stp";
 
-	printf("Writing geometry to %s\n", geometry.c_str());
+	std::cout <<"Writing geometry to " <<geometry <<'\n';
 	RoseDesign *geo_des = ROSE.newDesign(geometry.c_str());
 	ListOfRoseObject * geo_list;
 	geo_list = ROSE_CAST(ListOfRoseObject, geo_exports.copy(geo_des, 100)); // enough for selects and lists (10 was to few)
 
-	printf("Number of copied objects in geometry file %s_geo.stp is %d\n", stp_file_name, geo_list->size());
+	std::cout << "Number of copied objects in geometry file " << stp_file_name << "_geo.stp is " << geo_list->size() << '\n';
 	delete geo_list;  /* Don't want the list itself in the new design */
 
 	stix_tag_units(geo_des);
@@ -359,14 +372,18 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ARMsave(geo_des);
 	Workpiece *geo_piece = find_root_workpiece(geo_des);
 
+	filenames[pieceid]++;
+	std::string numberedpieceid(pieceid);
+	numberedpieceid += std::to_string(filenames[pieceid]);
 	std::string pmi_file(stp_file_name);
-	pmi_file += "/pmi.stp";
+	pmi_file += "/" + numberedpieceid;
+	pmi_file += "_pmi.stp";
 
 	RoseDesign *style_des = ROSE.newDesign(pmi_file.c_str());
 	ListOfRoseObject * style_list;
-	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des,INT_MAX)); // enough for selects and lists (10 was to few)
+	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des, INT_MAX)); // enough for selects and lists (10 was to few)
 
-	printf("Number of copied objects in style file %s_pmi.stp is %d\n", stp_file_name, style_list->size());
+	std::cout << "Number of copied objects in style file " << stp_file_name << "_pmi.stp is " << style_list->size() << '\n';
 	delete style_list;  /* Don't want the list itself in the new design */
 
 	stix_tag_units(style_des);
@@ -378,7 +395,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ARMCursor cur;
 	cur.traverse(style_des);
 	ARMObject * obj;
-	while (NULL!=(obj = cur.next()))
+	while (NULL != (obj = cur.next()))
 	{
 		if (!obj->castToSingle_styled_item())
 			continue;
@@ -405,7 +422,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 
 
 	if (style_count != 0)
-		printf("Added %d styles to workpiece %s\n", style_count, piece->get_its_id());
+		std::cout << "Added " << style_count << " styles to workpiece " << pieceid << '\n';
 
 	update_uri_forwarding(style_des);
 	ARMsave(style_des);
@@ -413,14 +430,15 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 
 	std::string master_file(stp_file_name);
 	master_file += "/";
-	master_file += piece->get_its_id();
+	master_file += numberedpieceid;
 	master_file += ".stp";
 
 	RoseDesign *master_des = ROSE.newDesign(master_file.c_str());
 
 	int count = 10;
 	if (new_model) {
-		RoseReference *styles = rose_make_ref(master_des, "pmi.stp#styles");
+		
+		RoseReference *styles = rose_make_ref(master_des, (numberedpieceid +"_pmi.stp#styles").c_str());
 		master_des->addName("styles", styles);
 		styles->entity_id(count);
 		count = count + 10;
@@ -430,26 +448,26 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	std::string prefix("../");
 	for (unsigned i = 0; i < depth; i++)
 		prefix.append( "../");
-	prefix.append("geometry_components/");
-	prefix.append(piece->get_its_id());
-	prefix.append(".stp");
+	prefix+="geometry_components/";
+	prefix+=pieceid;
+	prefix+=".stp";
 
 	std::string man_anchor(prefix);
-	man_anchor.append("#manifold_solid_brep");
+	man_anchor+="#manifold_solid_brep";
 	RoseReference *manifold = rose_make_ref(master_des, man_anchor.c_str());
 	master_des->addName("manifold_solid_brep", manifold);
 	manifold->entity_id(count);
 	count = count + 10;
 
 	std::string shape_anchor(prefix);
-	shape_anchor.append("#shape_representation");
+	shape_anchor +="#shape_representation";
 	RoseReference *shape_rep = rose_make_ref(master_des, shape_anchor.c_str());
 	master_des->addName("shape_representation", shape_rep);
 	shape_rep->entity_id(count);
 	count = count + 10;
 
 	std::string definition_anchor(prefix);
-	definition_anchor.append("#product_definition");
+	definition_anchor+="#product_definition";
 	RoseReference *definition = rose_make_ref(master_des, definition_anchor.c_str());
 	master_des->addName("product_definition", definition);
 	definition->entity_id(count);
@@ -466,8 +484,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool is_master)
 {
 	ListOfRoseObject tmp;
-	unsigned i;
-	unsigned j;
+	unsigned i,j;
 
 	piece->getpath_its_geometry(&tmp);
 	for (i = 0; i < tmp.size(); i++)
@@ -552,11 +569,12 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 			}
 		}
 	}
-	ARMCursor cur2;
-	cur2.traverse(piece->getRootObject()->design());
+
+	//Alas, the following case cannot be traversed with a simple ARM_RANGE- Single_datum_IF doesn't have a RoseManagerType!
+	ARMCursor cur;
+	cur.traverse(piece->getRootObject()->design());
 	ARMObject * tmp2;
-	
-	while (NULL != (tmp2 = cur2.next())) {
+	while (NULL != (tmp2 = cur.next())) {
 
 		Single_datum_IF *datty = tmp2->castToSingle_datum_IF();
 		if (datty) {
@@ -565,17 +583,14 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 				datty->getAIMObjects(&amp2);
 				for (i = 0; i < amp2.size(); i++)
 					exports.add(amp2[i]);
-
-				ARMCursor cur3;
-				cur3.traverse(piece->getRootObject()->design());
-				ARMObject * tmp3;
-				while (NULL != (tmp3 = cur3.next())) {
-					Datum_reference *dat = tmp3->castToDatum_reference();
-					if (dat && dat->get_referenced_datum() == datty->getRootObject()) {
+				for (auto dat : ARM_RANGE(Datum_reference, piece->getRootObject()->design()))
+				{
+					if (dat.get_referenced_datum() == datty->getRootObject()) {
 						ListOfRoseObject amp3;
-						dat->getAIMObjects(&amp3);
+						dat.getAIMObjects(&amp3);
 						for (i = 0; i < amp3.size(); i++)
 							exports.add(amp3[i]);
+
 					}
 				}
 			}
@@ -609,18 +624,13 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 bool find_style_contents(ListOfRoseObject &exports, Workpiece * piece, bool is_master)
 {
 	ListOfRoseObject tmp;
-	unsigned i;
 
-	ARMCursor cur;
-	cur.traverse(piece->getRootObject()->design());
-	ARMObject * ao;
-
-	while (NULL != (ao = cur.next())) {
-		Single_styled_item *ssi = ao->castToSingle_styled_item();
-		if (ssi && style_applies_to_workpiece(ssi, piece, is_master)) {
-			ssi->getAIMObjects(&tmp);
-			for (i = 0; i < tmp.size(); i++)
-				exports.add(tmp[i]);
+	for (auto &ssi : ARM_RANGE(Single_styled_item, piece->getRootObject()->design()))
+	{
+		if (style_applies_to_workpiece(&ssi, piece, is_master)) 
+		{
+			ssi.getAIMObjects(&tmp);
+			for (unsigned i = 0; i < tmp.size(); i++) exports.add(tmp[i]);
 		}
 	}
 	return true;
