@@ -693,12 +693,10 @@ RoseAttribute * FindAttribute(RoseObject * Attributer, RoseObject * Attributee)/
 }
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
-	//std::cout << "\n\nProdOut: " << ProdOut->fileDirectory() << "\nMaster: " << master->fileDirectory() << "\n";
+	//std::cout << "obj design is: " << obj->design()->name() << "\n";
 	unsigned i;
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	anchor.append("_split_");				//"advanced_face_split_item"
-	//if (*counter == 0){ std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << std::endl; }
-	//std::cout << anchor << " " << obj->domain()->typeIsSelect() << *counter << "\t";
 	anchor.append(std::to_string(::counter));	//ex. "advanced_face_split_item123"
 	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
 	std::string masDir(master->fileDirectory());
@@ -721,8 +719,9 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
 	URIManager = MyURIManager::make(obj);
 	URIManager->should_go_to_uri(ref);
-	ProdOut->addName(anchor.c_str(), obj);
-	std::cout << obj->design()->name() << std::endl;
+	MyPDManager * mgr = MyPDManager::make(obj);
+	if (mgr->getDstObj()){ ProdOut->addName(anchor.c_str(), mgr->getDstObj()); }
+	else{ ProdOut->addName(anchor.c_str(), obj); }
 	(::counter)++;
 	return ref;
 }
@@ -780,12 +779,12 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 		mgr->setDst(obj);
 		rose_mark_set(obj2);
 		rose_mark_set(obj);
-
+		if (obj->domain() == ROSE_DOMAIN(stp_product_definition)){ std::cout << obj->domain()->name() << ", " << obj->design()->name() << "\n"; }
 		Parents.emptyYourself();
 		obj->usedin(NULL, NULL, &Parents);
 		if (Parents.size() == 0){
 			//rose_mark_set(obj); std::cout << " successfully marked " << obj->design()->name() << "\n";
-			addRefAndAnchor(obj, dst, src, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
+			addRefAndAnchor(obj2, dst, src, dir);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
 		
 		for (unsigned k = 0, p = Parents.size(); k < p; k++){
@@ -1136,6 +1135,7 @@ int CountSubs(stp_product_definition * root){ //return the total count of subass
 ///this version of empty master must be called from a split function USING EVERY object in roots except for root as a value for prod.
 ///</summary>
 int EmptyMaster(RoseDesign * master, stp_product_definition *prod, RoseDesign* dump){
+	
 	RoseDesign * src = prod->design();
 	if (!src) { std::cout << "\nNo design in prod?" << std::endl; return 2; }
 	if (!prod){ return 1; }
