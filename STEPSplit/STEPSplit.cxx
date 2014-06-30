@@ -106,7 +106,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	//Get all of the child workpieces into a vector.
 	unsigned sub_count = root->size_its_components();
 	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
-	std::vector<RoseObject*> children,exported_children;	//TODO: figure out why in gods name these are RoseObject * instead of Workpiece *. Seems like lots of unnecessary converting back and forth.
+	std::vector<RoseObject*> children,exported_children;	//TODO: figure out why in gods name these are RoseObject * instead of Workpiece *. Seems like lots of unnecessary converting back and forth. I get the feeling there is no reason.
 	std::vector <RoseDesign *> subs;
 	std::vector <std::string> exported_name;
 	for (unsigned i = 0; i < sub_count; i++) {
@@ -502,62 +502,61 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 
 	piece->getAIMObjects(&tmp);
 	for (i = 0; i < tmp.size(); i++)
-	if (tmp[i]->isa(ROSE_DOMAIN(stp_product_related_product_category)))
-		continue;
-	else
-		exports.add(tmp[i]);
+	{
+		if (!(tmp[i]->isa(ROSE_DOMAIN(stp_product_related_product_category))))
+			exports.add(tmp[i]);
+	}
+	for (auto &cally : ARM_RANGE(Callout, piece->getRootObject()->design()))
+	{
+		if (cally.get_its_workpiece() == piece->getRoot()) {
+			ListOfRoseObject amp2;
+			cally.getAIMObjects(&amp2);
+			for (i = 0; i < amp2.size(); i++)
+				exports.add(amp2[i]);
 
+			ARMCursor cur3;
+			cur3.traverse(piece->getRootObject()->design());
+			ARMObject * tmp3;
+			while (NULL != (tmp3 = cur3.next())) {
+				Geometric_tolerance_IF *tolly = tmp3->castToGeometric_tolerance_IF();
+				if (tolly && tolly->get_applied_to() == cally.getRoot()) {
+					ListOfRoseObject amp3;
+					tolly->getAIMObjects(&amp3);
+					for (i = 0; i < amp3.size(); i++)
+						exports.add(amp3[i]);
+				}
+
+				Size_dimension_IF *dimmy = tmp3->castToSize_dimension_IF();
+				if (dimmy && dimmy->get_applied_to() == cally.getRoot()) {
+					ListOfRoseObject amp3;
+					dimmy->getAIMObjects(&amp3);
+					for (i = 0; i < amp3.size(); i++)
+						exports.add(amp3[i]);
+				}
+
+				Location_dimension_IF *locy = tmp3->castToLocation_dimension_IF();
+				if (locy && (locy->get_target() == cally.getRoot() || locy->get_origin() == cally.getRoot())) {
+					ListOfRoseObject amp3;
+					locy->getAIMObjects(&amp3);
+					for (i = 0; i < amp3.size(); i++)
+						exports.add(amp3[i]);
+				}
+
+				Surface_texture_parameter_IF *surfy = tmp3->castToSurface_texture_parameter_IF();
+				if (surfy && surfy->get_applied_to() == cally.getRoot()) {
+					ListOfRoseObject amp3;
+					surfy->getAIMObjects(&amp3);
+					for (i = 0; i < amp3.size(); i++)
+						exports.add(amp3[i]);
+				}
+			}
+		}
+	}
 	ARMCursor cur2;
 	cur2.traverse(piece->getRootObject()->design());
 	ARMObject * tmp2;
 	
 	while (NULL != (tmp2 = cur2.next())) {
-		Callout *cally = tmp2->castToCallout();
-		if (cally) {
-			if (cally->get_its_workpiece() == piece->getRoot()) {
-				ListOfRoseObject amp2;
-				cally->getAIMObjects(&amp2);
-				for (i = 0; i < amp2.size(); i++)
-					exports.add(amp2[i]);
-
-				ARMCursor cur3;
-				cur3.traverse(piece->getRootObject()->design());
-				ARMObject * tmp3;
-				while (NULL != (tmp3 = cur3.next())) {
-					Geometric_tolerance_IF *tolly = tmp3->castToGeometric_tolerance_IF();
-					if (tolly && tolly->get_applied_to() == cally->getRoot()) {
-						ListOfRoseObject amp3;
-						tolly->getAIMObjects(&amp3);
-						for (i = 0; i < amp3.size(); i++)
-							exports.add(amp3[i]);
-					}
-
-					Size_dimension_IF *dimmy = tmp3->castToSize_dimension_IF();
-					if (dimmy && dimmy->get_applied_to() == cally->getRoot()) {
-						ListOfRoseObject amp3;
-						dimmy->getAIMObjects(&amp3);
-						for (i = 0; i < amp3.size(); i++)
-							exports.add(amp3[i]);
-					}
-
-					Location_dimension_IF *locy = tmp3->castToLocation_dimension_IF();
-					if (locy && (locy->get_target() == cally->getRoot() || locy->get_origin() == cally->getRoot())) {
-						ListOfRoseObject amp3;
-						locy->getAIMObjects(&amp3);
-						for (i = 0; i < amp3.size(); i++)
-							exports.add(amp3[i]);
-					}
-
-					Surface_texture_parameter_IF *surfy = tmp3->castToSurface_texture_parameter_IF();
-					if (surfy && surfy->get_applied_to() == cally->getRoot()) {
-						ListOfRoseObject amp3;
-						surfy->getAIMObjects(&amp3);
-						for (i = 0; i < amp3.size(); i++)
-							exports.add(amp3[i]);
-					}
-				}
-			}
-		}
 
 		Single_datum_IF *datty = tmp2->castToSingle_datum_IF();
 		if (datty) {
