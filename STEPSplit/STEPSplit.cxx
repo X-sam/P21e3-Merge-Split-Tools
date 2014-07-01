@@ -164,7 +164,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	}
 	for (auto name : tracknames)
 	{
-		filenames[name.substr(0,name.size()-1)]--;
+		filenames[name.substr(0,name.size()-1)]--;	//Won't work with files with more than 9 assemblies. find_first_of perhaps? regexp? We'll see.
 	}
 	// Now top level design
 	std::string outfilename;
@@ -177,6 +177,13 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	outfilename = outfilename + rootid + '_' + std::to_string(filenames[rootid]) + ".stp";
 	RoseDesign *master = export_workpiece(root, outfilename.c_str(), true);
 	Workpiece *master_root = find_root_workpiece(master);
+
+	if (depth != 0)	//Root doesn't need anchors.
+	{
+		master->addName("product_definition", master_root->getRootObject());
+		master->addName("shape_representation", master_root->get_its_geometry());
+	}
+
 	std::cout << "Writing master to file: " << outfilename <<" root name: " <<master_root->get_its_id() <<std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
