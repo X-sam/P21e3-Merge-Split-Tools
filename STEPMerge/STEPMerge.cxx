@@ -30,7 +30,7 @@ int MoveAllReferences(RoseDesign *design, std::string workingdir);
 int PutItem(RoseObject *obj, RoseDesign* output)
 {
 	if (obj->design() == output) return 0;	//If the design of object is the output design, we are already done.
-	obj->move(output, INT_MAX, FALSE);
+	obj->copy(output, INT_MAX, FALSE);
 	return 1;
 }
 
@@ -127,6 +127,7 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 			{
 				workingdir.push_back('/');
 			}
+			filename = relativename;
 		}
 
 		auto lastslash = filename.find_last_of('/');
