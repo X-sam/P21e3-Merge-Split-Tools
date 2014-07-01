@@ -51,6 +51,12 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 	//Figure out if it's a local file or not
 	if (filename.find_first_of('/') || filename.find_first_of('\\'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
 	{
+		auto nextbackslash = filename.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
+		while (nextbackslash != std::string::npos)
+		{
+			filename[nextbackslash] = '/';
+			nextbackslash = filename.find('\\', nextbackslash);
+		}
 		//figure out if it is a url
 		if (filename.find("http://") != std::string::npos || filename.find("ftp://") != std::string::npos)
 		{
@@ -74,11 +80,16 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 			}
 			filename = out;	//Set reffile to the newly downloaded file, so that we can import it and such.
 		}
-		else if (filename.find("..\\") != std::string::npos || filename.find("../") != std::string::npos)	//Relative directories! Lets start popping things off the workingdir if we can.
+		else if (filename.find("../") != std::string::npos)	//Relative directories! Lets start popping things off the workingdir if we can.
 		{
-
-
-			if (workingdir.find_first_of('/') == workingdir.find_last_of('/'))	//If directory is './' then we can't go any higher.
+			auto temporaryworkingdir(workingdir);					//Make a temporary working dir so we can get consistent slashes.
+			auto nextbackslash = temporaryworkingdir.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
+			while (nextbackslash != std::string::npos)
+			{
+				temporaryworkingdir[nextbackslash] = '/';
+				nextbackslash = temporaryworkingdir.find('\\', nextbackslash);
+			}
+			if (temporaryworkingdir.find_first_of('/') == temporaryworkingdir.find_last_of('/'))	//If directory is './' then we can't go any higher.
 			{
 				std::cerr << "Relative path higher than root directory.\n";
 				return -1;
@@ -88,24 +99,23 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 			// ./ (we are in the root directory)
 			// ./path/to\file\ (mixed slashes with a slash on the end, we want to keep track of that last slash and drop stuff in the middle.
 			std::string relativename;
-			if (filename.find("..\\"))
-				relativename = filename.substr(filename.find("..\\")+3);
-			else if (filename.find("../"))
-				relativename = filename.substr(filename.find("../") + 3);
+			relativename = filename;
 			bool endslash = false;
-			if (workingdir[workingdir.size()] == '/' || workingdir[workingdir.size()] == '\\')
+			if (workingdir[workingdir.size()-1] == '/' || workingdir[workingdir.size()-1] == '\\')
 			{
 				endslash = true;
 				workingdir.pop_back();	//take off the trailing slash and put it back after parsing.
 			}
-			while (relativename.find("..\\")||relativename.find("../"))			//TODO: finish this parser.
+			while (relativename.find("..\\")!=std::string::npos||relativename.find("../")!=std::string::npos)			//TODO: finish this parser.
 			{
-				if (filename.find("..\\"))
-					relativename = filename.substr(filename.find("..\\") + 3);
-				else if (filename.find("../"))
-					relativename = filename.substr(filename.find("../") + 3);
+				if (relativename.find("..\\") != std::string::npos)
+					relativename = relativename.substr(relativename.find("..\\") + 3);
+				else if (relativename.find("../")!=std::string::npos)
+					relativename = relativename.substr(relativename.find("../") + 3);
 				auto lastbslash = workingdir.find_last_of('\\');
 				auto lastfslash = workingdir.find_last_of('/');
+				if (lastbslash == std::string::npos) lastbslash = 0;
+				if (lastfslash == std::string::npos)	lastfslash = 0;
 				if (lastbslash > lastfslash)
 				{
 					workingdir = workingdir.substr(0, lastbslash);
@@ -113,13 +123,12 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 				else
 					workingdir = workingdir.substr(0, lastfslash);
 			}
+			if (endslash == true)
+			{
+				workingdir.push_back('/');
+			}
 		}
-		auto nextbackslash = filename.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
-		while (nextbackslash != std::string::npos)
-		{
-			filename[nextbackslash] = '/';
-			nextbackslash = filename.find('\\', nextbackslash);
-		}
+
 		auto lastslash = filename.find_last_of('/');
 		workingdir += filename.substr(0, lastslash + 1);		//add the relative path to filedir
 		filename = filename.substr(lastslash + 1);		//Remove path from filename, so now it should look like "file.stp"
@@ -160,7 +169,7 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 //	2 on Doesn't Reference Whitelisted File
 // -2 on Download Failure
 // -3 on Reference without URI
-int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir="./")
+int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir="./",bool shouldloop=true)
 {
 	std::string reffile, anchor;
 	std::string filedir = workingdir;				//we need to know what directory the file is in, start at working dir and build the relative path in URIParse.
@@ -210,10 +219,36 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 	RoseCursor curser;
 	curser.traverse(child->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
-	if (curser.size() > 0)
+	if (curser.size() > 0 &&shouldloop==true)
 	{
 		std::cout << "File " << child->name() << " has children.\n";
-		if(0!=MoveAllReferences(child, filedir)) return -1;	//If the child has references, we resolve them before anything else.
+		bool isloop = false;
+		if (auto tmpobj = ROSE_CAST(RoseReference, curser.next()))	//Make sure the child isn't our immediate parent.
+		{
+			std::string testname,testanc,testdir(workingdir);
+			URIParse(tmpobj->uri(), testname, testanc, testdir);//Parse the reference. All we really need is testname.
+			testname=testname.substr(0, testname.find_last_of('.'));
+			std::string testparent(output->name());
+			auto tstpos =testparent.find_last_of('/');
+			if (tstpos!=std::string::npos)
+			{
+				tstpos++;	//don't want the slash.
+				testparent = testparent.substr(tstpos, testparent.size() - tstpos);
+			}
+			if ( testname== testparent)	//We are looping!
+			{
+				do
+				{
+					int tmpret = AddItem(tmpobj, child, workingdir, false);	//Oh good this happens to be a function for resolving references.
+					if (tmpret != 0) return tmpret;
+				} while (tmpobj = ROSE_CAST(RoseReference, curser.next()));
+				isloop = true;
+			}
+		}
+		if (isloop == false)
+		{
+			if (0 != MoveAllReferences(child, filedir)) return -1;	//If the child has references, we resolve them before anything else.
+		}
 	}
 	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
 	if (!obj)
