@@ -174,7 +174,8 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		outfilename = path;
 	std::string rootid = root->get_its_id();
 	filenames[rootid]++;
-	outfilename = outfilename + rootid + '_' + std::to_string(filenames[rootid]) + ".stp";
+	outfilename = outfilename + SafeName(rootid) + std::to_string(filenames[rootid]) + ".stp";
+
 	RoseDesign *master = export_workpiece(root, outfilename.c_str(), true);
 	Workpiece *master_root = find_root_workpiece(master);
 
