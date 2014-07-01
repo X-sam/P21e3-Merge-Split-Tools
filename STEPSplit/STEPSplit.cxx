@@ -117,6 +117,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		children.push_back(child->getRoot());
 	}
 	//For each child, find out if it needs an NAUO attached. Attach one if necessary.
+	std::vector<std::string> tracknames;	//Keep track of increments to filenames so we can decrement properly.
 	for (unsigned i = 0; i < children.size(); i++) {
 		Workpiece *child = Workpiece::find(children[i]);
 		bool need_nuao = false;
@@ -133,15 +134,21 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		else
 			outfilename = path;
 
-		if (need_nuao) {
+/*		if (need_nuao) {
 			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
-			std::string fname(SafeName(nauo->name()));
+			std::string fname(nauo->name());
+			fname = fname.substr(0, fname.find_last_of('_'));
+			fname += std::to_string(++filenames[fname]);	//This deals with folder handling.. nut-bolt assembly 1 2 etc.
+			fname = SafeName(fname);
 			outfilename +=fname;
+			tracknames.push_back(outfilename);
 		}
-		else
+		else*/
 		{
-			std::string fname(SafeName(child->get_its_id()));
+			std::string fname(child->get_its_id());
 			fname += std::to_string(++filenames[fname]);
+			tracknames.push_back(fname);
+			fname = SafeName(fname);
 			outfilename += fname;
 		}
 		exported_name.push_back(outfilename);
@@ -155,11 +162,9 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		exported_children.push_back(exported_child->getRoot());
 
 	}
-	for (auto name : exported_name)
+	for (auto name : tracknames)
 	{
-		auto len = name.find_last_of('/') + 1;
-		auto n= name.substr(len,name.size()-len-1);
-		filenames[n]--;
+		filenames[name.substr(0,name.size()-1)]--;
 	}
 	// Now top level design
 	std::string outfilename;
