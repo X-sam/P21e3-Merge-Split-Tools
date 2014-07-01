@@ -178,11 +178,8 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	RoseDesign *master = export_workpiece(root, outfilename.c_str(), true);
 	Workpiece *master_root = find_root_workpiece(master);
 
-	if (depth != 0)	//Root doesn't need anchors.
-	{
-		master->addName("product_definition", master_root->getRootObject());
-		master->addName("shape_representation", master_root->get_its_geometry());
-	}
+	master->addName("product_definition", master_root->getRootObject());
+	master->addName("shape_representation", master_root->get_its_geometry());
 
 	std::cout << "Writing master to file: " << outfilename <<" root name: " <<master_root->get_its_id() <<std::endl;
 
@@ -424,7 +421,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 				std::cout <<"Warning: style found not applied to a manifold solid\n";
 				continue;
 			}
-			RoseReference *manifold = rose_make_ref(style_des, (numberedpieceid+".stp#manifold_solid_solid_brep").c_str());
+			RoseReference *manifold = rose_make_ref(style_des, (numberedpieceid+".stp#manifold_solid_brep").c_str());
 			stp_styled_item *style = ssi->getRoot();
 			rose_put_ref(manifold, style, "item");
 			// garbage collect
