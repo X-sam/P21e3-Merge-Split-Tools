@@ -9,6 +9,7 @@ class MyURIManager : public RoseManager {
 protected:
 	RoseReference * 	f_ref;
 	RoseReference *		real_ref;
+	int					index;
 
 public:
 	MyURIManager() : f_ref(0) {}
@@ -20,6 +21,9 @@ public:
 	
 	RoseReference * should_point_to()				{ return real_ref; }
 	void should_point_to(RoseReference * d)			{ real_ref = d; }
+
+	void setIndex(int i)				{ index = i; }
+	int getIndex()						{ return index; }
 
 	static MyURIManager * find(RoseObject *);
 	static MyURIManager * make(RoseObject *);
@@ -53,6 +57,8 @@ public:
 
 	void nameAnchor(std::string s)		{ anchorName = s; }
 	std::string getAnchorName()			{ return anchorName; }
+
+
 
 	MyPDManager() { childPD = NULL; childDes = NULL; }
 
