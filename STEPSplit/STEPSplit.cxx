@@ -409,10 +409,10 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 		if (ssi->get_its_geometry()) {
 			stp_representation_item *repi = ssi->get_its_geometry();
 			if (!repi->isa(ROSE_DOMAIN(stp_manifold_solid_brep))) {
-				printf("Warning: style found not applied to a manifold solid\n");
+				std::cout <<"Warning: style found not applied to a manifold solid\n";
 				continue;
 			}
-			RoseReference *manifold = rose_make_ref(style_des, "#manifold_solid_solid_brep");
+			RoseReference *manifold = rose_make_ref(style_des, (numberedpieceid+".stp#manifold_solid_solid_brep").c_str());
 			stp_styled_item *style = ssi->getRoot();
 			rose_put_ref(manifold, style, "item");
 			// garbage collect
