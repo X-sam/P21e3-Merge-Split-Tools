@@ -35,12 +35,17 @@ int PutItem(RoseObject *obj, RoseDesign* output)
 }
 
 //Given a URI, extracts a file, anchor, and directory heirarchy to the file (if applicable)
-//Returns 0 on success, -1 on unexpected failure, -2 on Download Failure. 
+//Returns 0 on success, -1 on unexpected failure, -2 on Download Failure, -3 on No File Referenced.
 int URIParse(const std::string URI, std::string &filename, std::string &anchor, std::string &workingdir)
 {
 	//URI looks like "filename.stp#item1234"
 	//Split that into "filename.stp" and "item1234"
 	int poundpos = URI.find_first_of('#');
+	if (0 == poundpos)
+	{
+		std::cerr << "Reference " << URI << "contains no URI.\n";
+		return -3;	//no file referenced.
+	}
 	filename = URI.substr(0, poundpos);	//reffile contains something like "filename.stp" or maybe "path/to/filename.stp" or maybe even "http://url.com/file.stp" 
 	anchor = URI.substr(poundpos + 1);	//anchor contains something like "item1234"		
 	//Figure out if it's a local file or not
@@ -69,10 +74,45 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 			}
 			filename = out;	//Set reffile to the newly downloaded file, so that we can import it and such.
 		}
-		else if (filename.find("..\\") != std::string::npos || filename.find("../") != std::string::npos)
+		else if (filename.find("..\\") != std::string::npos || filename.find("../") != std::string::npos)	//Relative directories! Lets start popping things off the workingdir if we can.
 		{
-			std::cerr << "Relative pathing not supported\n";
-			return -1;
+
+
+			if (workingdir.find_first_of('/') == workingdir.find_last_of('/'))	//If directory is './' then we can't go any higher.
+			{
+				std::cerr << "Relative path higher than root directory.\n";
+				return -1;
+			}
+			//Consider workingdir- looks like one of three things.
+			// ./path\to/file (mixed slashes, we fix that in a minute but can deal with it for now)
+			// ./ (we are in the root directory)
+			// ./path/to\file\ (mixed slashes with a slash on the end, we want to keep track of that last slash and drop stuff in the middle.
+			std::string relativename;
+			if (filename.find("..\\"))
+				relativename = filename.substr(filename.find("..\\")+3);
+			else if (filename.find("../"))
+				relativename = filename.substr(filename.find("../") + 3);
+			bool endslash = false;
+			if (workingdir[workingdir.size()] == '/' || workingdir[workingdir.size()] == '\\')
+			{
+				endslash = true;
+				workingdir.pop_back();	//take off the trailing slash and put it back after parsing.
+			}
+			while (relativename.find("..\\")||relativename.find("../"))			//TODO: finish this parser.
+			{
+				if (filename.find("..\\"))
+					relativename = filename.substr(filename.find("..\\") + 3);
+				else if (filename.find("../"))
+					relativename = filename.substr(filename.find("../") + 3);
+				auto lastbslash = workingdir.find_last_of('\\');
+				auto lastfslash = workingdir.find_last_of('/');
+				if (lastbslash > lastfslash)
+				{
+					workingdir = workingdir.substr(0, lastbslash);
+				}
+				else
+					workingdir = workingdir.substr(0, lastfslash);
+			}
 		}
 		auto nextbackslash = filename.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
 		while (nextbackslash != std::string::npos)
@@ -119,12 +159,18 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 //	1 on References Blacklisted File
 //	2 on Doesn't Reference Whitelisted File
 // -2 on Download Failure
+// -3 on Reference without URI
 int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir="./")
 {
 	std::string reffile, anchor;
 	std::string filedir = workingdir;				//we need to know what directory the file is in, start at working dir and build the relative path in URIParse.
 	int URIReturnValue = URIParse(ref->uri(), reffile, anchor, filedir); //Get the strings we need out of the URI.
-	if (0 != URIReturnValue) return URIReturnValue;	
+	if (0 != URIReturnValue)
+	{
+		if (URIReturnValue == -3)
+			std::cerr << "\t(File " << output->name() << ")\n";
+		return URIReturnValue;
+	}
 	//Now we can open the file and find the specific item referenced by the anchor.
 	if (blacklist)
 	{
@@ -167,7 +213,7 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 	if (curser.size() > 0)
 	{
 		std::cout << "File " << child->name() << " has children.\n";
-		MoveAllReferences(child, filedir);	//If the child has references, we resolve them before anything else.
+		if(0!=MoveAllReferences(child, filedir)) return -1;	//If the child has references, we resolve them before anything else.
 	}
 	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
 	if (!obj)
@@ -260,7 +306,17 @@ int MoveAllReferences(RoseDesign *design, const std::string workingdir)	//Given 
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design, workingdir);
 		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
 		{
-			std::cerr << "Error parsing reference\n";
+			std::cerr << "Error parsing reference in " << design->name() <<"\n";
+			return EXIT_FAILURE;
+		}
+		if (-2 == returnval)
+		{
+			std::cerr << "Error downloading file\n";
+			return EXIT_FAILURE;
+		}
+		if (-3 == returnval)
+		{
+			std::cerr << "Reference contains no URI.\n";
 			return EXIT_FAILURE;
 		}
 		else if (0 == returnval)	//Reference successfully transplanted.
