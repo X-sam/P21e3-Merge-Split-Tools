@@ -30,8 +30,6 @@
 #pragma comment(lib,"stpman.lib")
 #pragma comment(lib,"stpman_arm.lib")
 
-std::map<std::string,int> filenames;
-
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 std::string SafeName(std::string name);
 
@@ -93,7 +91,7 @@ int main(int argc, char* argv[])
 
 bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth)
 {
-	std::cout << "\n\nMaking directory " << path <<"\n";
+	std::cout << "\n\nMaking directory " << path << "\n";
 	rose_mkdir(path.c_str());
 
 	// make directory for all the geometry components
@@ -106,7 +104,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	//Get all of the child workpieces into a vector.
 	unsigned sub_count = root->size_its_components();
 	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
-	std::vector<RoseObject*> children,exported_children;	//TODO: figure out why in gods name these are RoseObject * instead of Workpiece *. Seems like lots of unnecessary converting back and forth. I get the feeling there is no reason.
+	std::vector<RoseObject*> children, exported_children;	//TODO: figure out why in gods name these are RoseObject * instead of Workpiece *. Seems like lots of unnecessary converting back and forth. I get the feeling there is no reason.
 	std::vector <RoseDesign *> subs;
 	std::vector <std::string> exported_name;
 	for (unsigned i = 0; i < sub_count; i++) {
@@ -117,7 +115,6 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		children.push_back(child->getRoot());
 	}
 	//For each child, find out if it needs an NAUO attached. Attach one if necessary.
-	std::vector<std::string> tracknames;	//Keep track of increments to filenames so we can decrement properly.
 	for (unsigned i = 0; i < children.size(); i++) {
 		Workpiece *child = Workpiece::find(children[i]);
 		bool need_nuao = false;
@@ -134,20 +131,15 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		else
 			outfilename = path;
 
-/*		if (need_nuao) {
+		if (need_nuao) {
 			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
 			std::string fname(nauo->name());
-			fname = fname.substr(0, fname.find_last_of('_'));
-			fname += std::to_string(++filenames[fname]);	//This deals with folder handling.. nut-bolt assembly 1 2 etc.
 			fname = SafeName(fname);
-			outfilename +=fname;
-			tracknames.push_back(outfilename);
+			outfilename += fname;
 		}
-		else*/
+		else
 		{
 			std::string fname(child->get_its_id());
-			fname += std::to_string(++filenames[fname]);
-			tracknames.push_back(fname);
 			fname = SafeName(fname);
 			outfilename += fname;
 		}
@@ -162,19 +154,15 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		exported_children.push_back(exported_child->getRoot());
 
 	}
-	for (auto name : tracknames)
-	{
-		filenames[name.substr(0,name.size()-1)]--;	//Won't work with files with more than 9 assemblies. find_first_of perhaps? regexp? We'll see.
-	}
+
 	// Now top level design
 	std::string outfilename;
 	if (path.size() > 0)
 		outfilename = path + "/";
 	else
 		outfilename = path;
-	std::string rootid = root->get_its_id();
-	filenames[rootid]++;
-	outfilename = outfilename + SafeName(rootid) + std::to_string(filenames[rootid]) + ".stp";
+
+	outfilename+="master.stp";
 
 	RoseDesign *master = export_workpiece(root, outfilename.c_str(), true);
 	Workpiece *master_root = find_root_workpiece(master);
@@ -182,7 +170,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	master->addName("product_definition", master_root->getRootObject());
 	master->addName("shape_representation", master_root->get_its_geometry());
 
-	std::cout << "Writing master to file: " << outfilename <<" root name: " <<master_root->get_its_id() <<std::endl;
+	std::cout << "Writing master to file: " << outfilename <<std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
 	for (unsigned i = 0; i < sub_count; i++) {
@@ -197,7 +185,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		std::string subname(exported_name[i].begin()+itr+1, exported_name[i].end());
 		std::cout << subname << '\n';
 		std::string dirname(subname);
-		//dirname = "";   // new strategy is for master to go in same directory as children
+		dirname = "";   // new strategy is for master to go in same directory as children
 
 		stp_product_definition *pd = comp->get_component();
 		stp_product_definition_formation *pdf = pd->formation();
@@ -360,7 +348,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	std::cout <<"Writing geometry to " <<geometry <<'\n';
 	RoseDesign *geo_des = ROSE.newDesign(geometry.c_str());
 	ListOfRoseObject * geo_list;
-	geo_list = ROSE_CAST(ListOfRoseObject, geo_exports.copy(geo_des, 100)); // enough for selects and lists (10 was to few)
+	geo_list = ROSE_CAST(ListOfRoseObject, geo_exports.copy(geo_des, INT_MAX));
 
 	std::cout << "Number of copied objects in geometry file " << stp_file_name << "_geo.stp is " << geo_list->size() << '\n';
 	delete geo_list;  /* Don't want the list itself in the new design */
@@ -382,12 +370,8 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ARMsave(geo_des);
 	Workpiece *geo_piece = find_root_workpiece(geo_des);
 
-	filenames[pieceid]++;
-	std::string numberedpieceid(pieceid);
-	numberedpieceid += std::to_string(filenames[pieceid]);
 	std::string pmi_file(stp_file_name);
-	pmi_file += "/" + numberedpieceid;
-	pmi_file += "_pmi.stp";
+	pmi_file += "/pmi.stp";
 
 	RoseDesign *style_des = ROSE.newDesign(pmi_file.c_str());
 	ListOfRoseObject * style_list;
@@ -422,7 +406,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 				std::cout <<"Warning: style found not applied to a manifold solid\n";
 				continue;
 			}
-			RoseReference *manifold = rose_make_ref(style_des, (numberedpieceid+".stp#manifold_solid_brep").c_str());
+			RoseReference *manifold = rose_make_ref(style_des, "master.stp#manifold_solid_brep");
 			stp_styled_item *style = ssi->getRoot();
 			rose_put_ref(manifold, style, "item");
 			// garbage collect
@@ -439,16 +423,14 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ARMsave(geo_des);
 
 	std::string master_file(stp_file_name);
-	master_file += "/";
-	master_file += numberedpieceid;
-	master_file += ".stp";
+	master_file += "/master.stp";
 
 	RoseDesign *master_des = ROSE.newDesign(master_file.c_str());
 
 	int count = 10;
 	if (new_model) {
 		
-		RoseReference *styles = rose_make_ref(master_des, (numberedpieceid +"_pmi.stp#styles").c_str());
+		RoseReference *styles = rose_make_ref(master_des, "pmi.stp#styles");
 		master_des->addName("styles", styles);
 		styles->entity_id(count);
 		count = count + 10;
