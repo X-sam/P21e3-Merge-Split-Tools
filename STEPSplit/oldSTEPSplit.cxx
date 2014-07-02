@@ -765,7 +765,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 	RoseMark pd_ref = rose_mark_begin();
 	RoseMark sh_rep = rose_mark_begin();
 	RoseMark inDst = rose_mark_begin();
-	RoseMark isAnchor = rose_mark_begin();
+	//RoseMark isAnchor = rose_mark_begin();
 	//rose_mark_begin();
 	RoseDesign* src = source_list->get(0)->design();
 	RoseDesign* dst = dst_list->get(0)->design();
@@ -783,7 +783,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 		rose_mark_set(obj, inDst);
 	}
 	
-	DictionaryOfRoseObject * anchors; //IMPORTANT: marks anchored objects to be given references 
+	/*DictionaryOfRoseObject * anchors; //IMPORTANT: marks anchored objects to be given references 
 	anchors = src->nameTable();
 	if (anchors) {
 		for (unsigned it = 0; it < anchors->size(); it++) {
@@ -792,7 +792,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 			rose_mark_set(anchor, isAnchor);
 		}
 	}
-
+	*/
 	for (i = 0, sz = source_list->size(); i < sz; i++){
 		obj = dst_list->get(i); //new design
 		obj2 = source_list->get(i); //origional design
@@ -809,7 +809,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 			for (unsigned k = 0, p = Parents.size(); k < p; k++){
 				RoseObject * parent = Parents[k];
 				if (!rose_is_marked(parent, inDst) && !rose_is_marked(parent, child)){
-					std::cout << parent->domain()->name() << " ( " << obj2->domain()->name() << " )\n";
+					//std::cout << parent->domain()->name() << " ( " << obj2->domain()->name() << " )\n";
 					used = true;\
 
 					if (!rose_is_marked(obj2, child) && parent->domain() != ROSE_DOMAIN(stp_representation_relationship_with_transformation_and_shape_representation_relationship) && parent->domain() != ROSE_DOMAIN(stp_next_assembly_usage_occurrence)){
@@ -862,7 +862,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 							if (!rose_is_marked(childobj->design(), sh_rep)){
 								MyPDManager * mgr = MyPDManager::make(obj);
 								if (mgr->should_point_to() == NULL){
-									std::cout << "big long rep rel:\t" << childobj->domain()->name() << " AND " << obj->domain()->name() << "\n";
+									//std::cout << "big long rep rel:\t" << childobj->domain()->name() << " AND " << obj->domain()->name() << "\n";
 									mgr->setRef(addRefAndAnchor(childobj, dst, src, dir));
 									rose_mark_set(childobj->design(), sh_rep); rose_mark_set(childobj, child);
 									continue;
@@ -877,7 +877,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 							if (!rose_is_marked(childobj->design(), pd_ref)){
 								MyPDManager * mgr = MyPDManager::make(obj);
 								if (mgr->should_point_to() == NULL){
-									std::cout  << "NAOU:\t" << childobj->domain()->name() << " AND " << obj->domain()->name() << "\n";
+									//std::cout  << "NAOU:\t" << childobj->domain()->name() << " AND " << obj->domain()->name() << "\n";
 									mgr->setRef(addRefAndAnchor(childobj, dst, src, dir));
 									rose_mark_set(childobj->design(), pd_ref); rose_mark_set(childobj, child);
 									//std::cout << "Set ref to " << mgr->should_point_to()->uri() << "\n";
@@ -891,8 +891,7 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 							else{ continue; } //addRefAndAnchor(obj, dst, src, dir);
 						}
 					}
-					
-					std::cout << "it just happend:\n\t" << childobj->domain()->name() << " AND " << obj->domain()->name() << "\n";
+					///std::cout << "it just happend:\n\t" << childobj->domain()->name() << " AND " << obj->domain()->name() << "\n";
 					rose_mark_set(childobj, child);
 					rose_mark_set(obj, child);
 					addRefAndAnchor(childobj, dst, src, dir); 
@@ -904,27 +903,12 @@ void MakeReferencesAndAnchors(ListOfRoseObject* source_list, ListOfRoseObject * 
 		}
 		///</handleEntity>
 	}
-	if (anchors) {
-		for (i = 0, sz = dst_list->size(); i < sz; i++){
-			for (unsigned it = 0; it < anchors->size(); it++) {
-				RoseObject *anchor = anchors->listOfValues()->get(it);
-				MyPDManager * mgr = MyPDManager::make(anchor);
-				if (!rose_is_marked(anchor, child)){
-					if (anchor == dst_list->get(i)){
-						std::cout << dst_list->get(i)->domain()->name() << "\n";
-						anchors->listOfValues()->put(addRefAndAnchor(anchor, dst, src, dir), i);
-						rose_mark_set(anchor, child);
-					}
-				}
-			}
-		}
-	}
 	
 	rose_mark_end(child);
 	rose_mark_end(pd_ref);
 	rose_mark_end(sh_rep);
 	rose_mark_end(inDst);
-	rose_mark_end(isAnchor);
+	//rose_mark_end(isAnchor);
 
 }
 
@@ -1017,6 +1001,25 @@ RoseDesign * PutOut(stp_product_definition * prod, std::string dir){ //(product,
 	std::cout << "list moved " << count << " objects." << std::endl;
 	std::cout << forProdOut[0]->design()->name() << ", " << listy->get(0)->design()->name() << "\n";
 	MakeReferencesAndAnchors(&forProdOut, listy, dir);
+
+	/*DictionaryOfRoseObject * anchors; //IMPORTANT: marks anchored objects to be given references 
+	anchors = src->nameTable();
+	if (anchors) {
+		for (unsigned i = 0, sz = listy->size(); i < sz; i++){
+			for (unsigned it = 0; it < anchors->size(); it++) {
+				RoseObject *anchor = anchors->listOfValues()->get(it);
+				MyPDManager * mgr = MyPDManager::make(anchor);
+				if (anchor == forProdOut.get(i)){
+					if (mgr->getDstObj() == NULL){
+						std::cout << listy->get(i)->domain()->name() << "\n";
+						mgr->setDst(listy->get(i));
+						anchors->listOfValues()->put(addRefAndAnchor(anchor, listy->design(), src, dir), i);
+					}
+				}
+			}
+		}
+	}*/
+
 	//MakeReferencesAndAnchors(src, ProdOut, dir);
 	rose_mark_end();
 	return ProdOut;
