@@ -30,6 +30,8 @@
 #pragma comment(lib,"stpman.lib")
 #pragma comment(lib,"stpman_arm.lib")
 
+ListOfRoseDesign schemas;
+
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 std::string SafeName(std::string name);
 
@@ -73,6 +75,8 @@ int main(int argc, char* argv[])
 	RoseDesign * original = ROSE.useDesign(infilename.c_str());
 	stix_tag_units(original);
 	ARMpopulate(original);
+	
+	schemas = *original->schemas();	//Load the schemas from original. They have to go in all of the child files.
 
 	Workpiece *root = find_root_workpiece(original);
 	if (root == NULL)
@@ -162,7 +166,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	else
 		outfilename = path;
 
-	outfilename+="master.stp";
+	outfilename += "master.stp";
 
 	RoseDesign *master = export_workpiece(root, outfilename.c_str(), true);
 	Workpiece *master_root = find_root_workpiece(master);
@@ -170,7 +174,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	master->addName("product_definition", master_root->getRootObject());
 	master->addName("shape_representation", master_root->get_its_geometry());
 
-	std::cout << "Writing master to file: " << outfilename <<std::endl;
+	std::cout << "Writing master to file: " << outfilename << std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
 	for (unsigned i = 0; i < sub_count; i++) {
@@ -180,9 +184,9 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		auto itr = exported_name[i].find_first_of('/');
 		for (unsigned j = 0; j < depth; j++)
 		{
-			itr = exported_name[i].find('/', itr+1);
+			itr = exported_name[i].find('/', itr + 1);
 		}
-		std::string subname(exported_name[i].begin()+itr+1, exported_name[i].end());
+		std::string subname(exported_name[i].begin() + itr + 1, exported_name[i].end());
 		std::cout << subname << '\n';
 		std::string dirname(subname);
 		dirname = "";   // new strategy is for master to go in same directory as children
@@ -216,6 +220,10 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 
 	update_uri_forwarding(master);
 	//	master->save ();
+	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
+	{
+		master->addSchema(schemas.get(i));
+	}
 	ARMsave(master);
 
 	if (repeat) {
@@ -299,6 +307,9 @@ RoseDesign * export_workpiece(Workpiece * piece, const char * stp_file_name, boo
 	stix_tag_units(new_des);
 	ARMpopulate(new_des);
 
+	if (is_master) return new_des;
+
+
 	auto new_model = Styled_geometric_model::newInstance(new_des);
 
 	int style_count = 0;
@@ -366,8 +377,12 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	RoseObject *mani = objs.next();
 	if (mani != NULL)
 		geo_des->addName("manifold_solid_brep", mani);
+	
+	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
+	{
+		geo_des->addSchema(schemas.get(i));
+	}
 
-	ARMsave(geo_des);
 	Workpiece *geo_piece = find_root_workpiece(geo_des);
 
 	std::string pmi_file(stp_file_name);
@@ -419,6 +434,10 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 		std::cout << "Added " << style_count << " styles to workpiece " << pieceid << '\n';
 
 	update_uri_forwarding(style_des);
+	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
+	{
+		style_des->addSchema(schemas.get(i));
+	}
 	ARMsave(style_des);
 	ARMsave(geo_des);
 
@@ -465,6 +484,10 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	definition->entity_id(count);
 	count = count + 10;
 
+	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
+	{
+		master_des->addSchema(schemas.get(i));
+	}
 	master_des->save();
 
 	return geo_des;
