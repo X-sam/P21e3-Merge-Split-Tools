@@ -40,7 +40,7 @@
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|X64'">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ConfigurationType>Application</ConfigurationType>
@@ -80,6 +80,7 @@
       <AdditionalLibraryDirectories>$(ROSE)\lib\i86_win32_vc11_md</AdditionalLibraryDirectories>
       <AdditionalDependencies>p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
+      <Profile>true</Profile>
     </Link>
     <BuildLog>
       <Path>C:\tmp\$(MSBuildProjectName).log</Path>
@@ -106,6 +107,7 @@
       <AdditionalLibraryDirectories>$(ROSE)\lib\x64_win64_vc12_md</AdditionalLibraryDirectories>
       <AdditionalDependencies>stpman.lib;p28e2.lib;rose.lib;kernel32.lib;user32.lib;advapi32.lib;stpman_arm.lib;stmodule.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>MSVCRT</IgnoreSpecificDefaultLibraries>
+      <Profile>true</Profile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
