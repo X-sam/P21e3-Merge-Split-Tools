@@ -11,14 +11,14 @@ STEPMerge.exe input.stp output.stp
 
 STEPMerge.py [directory to traverse]
 
-
+=======================
 STEPSplit- Given a step file with assemblies, splits into proposed ZIP assembly form.
 
 -Usage:
 
 STEPSplit.exe input.stp
 
-
+=======================
 PMISplit- Given a step file, uses ARM to split the workpieces into a separate file. This effectively puts all the geometry in one file and everything else in another.
 
 -Usage:
