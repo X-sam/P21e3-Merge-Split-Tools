@@ -142,8 +142,8 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 {
 	if (rru == NULL) return -1;
 	//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() << std::endl;
-
-	if (rru->user_att()->isSelect()) {
+	if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) return 0;
+	else if (rru->user_att()->isSelect()) {
 
 		RoseDomain * selectdomain = rru->user_att()->slotDomain();
 		RoseObject * sel = rru->user()->design()->pnewInstance(selectdomain);
@@ -153,8 +153,7 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 			rru->user_idx()
 			);
 		rose_put_nested_object((RoseUnion*)sel, obj);
-	}
-	if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) return 0;
+	} 
 	else{
 		rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
 	}
@@ -257,11 +256,11 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 		std::cout << "Anchor " << anchor << " not found in file: " << reffile <<'\n';
 		return -1;	//Couldn't find the anchor.
 	}
-	if (-1 == PutItem(obj, output))	//Move the object (which is currently in the child file) into the new output file.
+/*	if (-1 == PutItem(obj, output))	//Move the object (which is currently in the child file) into the new output file.
 	{
 		//Something went wrong. This can't happen at the present, but in theory a change to PutItem could allow for it.
 		return -1;
-	}
+	}*/
 	//Now that we have moved the item into the new domain,
 	//We need to update the items that use the references.
 	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
@@ -359,9 +358,27 @@ int MoveAllReferences(RoseDesign *design, const std::string workingdir)	//Given 
 		{
 			rose_move_to_trash(obj);
 		}
-		//TODO: Maybe add stuff for black/white-list cases and download error?
 	}
 
+	return 0;
+}
+
+//Given a design, moves all other designs in memory into that design. Returns 0 on completion.
+int moveeverything(RoseDesign * out)
+{
+	ListOfRoseDesign * designs = ROSE.workspaceDesigns();
+	for (unsigned i = 0, sz = designs->size(); i < sz; i++)
+	{
+		auto des = designs->get(i);
+		if (des == out || des->isSchema () || des == rose_trash () ) continue;
+
+		RoseCursor cursor;
+		cursor.traverse(des);
+		RoseObject *obj;
+		while (NULL != (obj = cursor.next())) {
+			rose_move_to_design(obj, out);
+		}
+	}
 	return 0;
 }
 
@@ -395,29 +412,45 @@ int main(int argc, char* argv[])
 		chdir(infilename.substr(0, pos).c_str());
 	}
 	/* Create a RoseDesign to hold the output data*/
-	RoseDesign * master = ROSE.useDesign(infilename.data());
+	RoseDesign * master = ROSE.useDesign(infilename.c_str());
 	if (!master)
 	{
 		std::cerr << "Error opening input file" << std::endl;
 		return EXIT_FAILURE;
 	}
-	if(!outfilename.find_first_of('/')&&!outfilename.find_first_of('\\')) outfilename = "./" + outfilename;
-	master->saveAs(outfilename.data());
-	RoseDesign * design = ROSE.useDesign(outfilename.data());
+	std::string outdirname;
+	if(outfilename.find_first_of('/')||outfilename.find_first_of('\\'))
+	{
+		auto lastbslash = outfilename.find_last_of('\\');
+		lastbslash = (lastbslash == std::string::npos) ? 0 : lastbslash;
+		auto lastfslash = outfilename.find_last_of('/');
+		lastfslash = (lastfslash == std::string::npos) ? 0 : lastfslash;
+		if (lastfslash > lastbslash) lastbslash = lastfslash;
+		outdirname=(outfilename.substr(0,lastbslash+1));
+		outfilename = outfilename.substr(lastbslash, outfilename.size() - lastbslash);
+	}
+	else outdirname = "./";
+/*	master->saveAs(outfilename.data());
+//	RoseDesign * design = ROSE.useDesign(outfilename.c_str());
 	if (!design)
 	{
 		std::cerr << "Error opening output file" << std::endl;
 		return EXIT_FAILURE;
-	}
+	}*/
 	//Design now contains the entire parent file.
-	int retval = MoveAllReferences(design,master->fileDirectory());
+	if (outfilename.find(".stp")) outfilename = outfilename.substr(0, outfilename.size() - 4);
+	master->name(outfilename.c_str());
+	int retval = MoveAllReferences(master,master->fileDirectory());
+	moveeverything(master);
 	for (auto i : downloaded)
 	{
 		//Remove temporary files
-		DeleteFileA(i.data());
+//		DeleteFileA(i.data());
 	}
 	rose_empty_trash();	//This deletes the reference from the new file, since we've replaced it with a local copy of the referenced object and it's children.
-	design->save();
+	//design->name(outfilename.c_str());
+	master->fileDirectory(outdirname.c_str());
+	master->save();
 	return retval;
 }
 
