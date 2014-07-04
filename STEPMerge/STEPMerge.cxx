@@ -30,22 +30,33 @@ int MoveAllReferences(RoseDesign *design, std::string workingdir);
 int PutItem(RoseObject *obj, RoseDesign* output)
 {
 	if (obj->design() == output) return 0;	//If the design of object is the output design, we are already done.
-	obj->move(output, INT_MAX, FALSE);
+	obj->copy(output, INT_MAX, FALSE);
 	return 1;
 }
 
 //Given a URI, extracts a file, anchor, and directory heirarchy to the file (if applicable)
-//Returns 0 on success, -1 on unexpected failure, -2 on Download Failure. 
+//Returns 0 on success, -1 on unexpected failure, -2 on Download Failure, -3 on No File Referenced.
 int URIParse(const std::string URI, std::string &filename, std::string &anchor, std::string &workingdir)
 {
 	//URI looks like "filename.stp#item1234"
 	//Split that into "filename.stp" and "item1234"
 	int poundpos = URI.find_first_of('#');
+	if (0 == poundpos)
+	{
+		std::cerr << "Reference " << URI << "contains no URI.\n";
+		return -3;	//no file referenced.
+	}
 	filename = URI.substr(0, poundpos);	//reffile contains something like "filename.stp" or maybe "path/to/filename.stp" or maybe even "http://url.com/file.stp" 
 	anchor = URI.substr(poundpos + 1);	//anchor contains something like "item1234"		
 	//Figure out if it's a local file or not
 	if (filename.find_first_of('/') || filename.find_first_of('\\'))	//not local if it has a slash. Don't tell me file names may contain '/' because they can't!
 	{
+		auto nextbackslash = filename.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
+		while (nextbackslash != std::string::npos)
+		{
+			filename[nextbackslash] = '/';
+			nextbackslash = filename.find('\\', nextbackslash);
+		}
 		//figure out if it is a url
 		if (filename.find("http://") != std::string::npos || filename.find("ftp://") != std::string::npos)
 		{
@@ -69,17 +80,56 @@ int URIParse(const std::string URI, std::string &filename, std::string &anchor, 
 			}
 			filename = out;	//Set reffile to the newly downloaded file, so that we can import it and such.
 		}
-		else if (filename.find("..\\") != std::string::npos || filename.find("../") != std::string::npos)
+		else if (filename.find("../") != std::string::npos)	//Relative directories! Lets start popping things off the workingdir if we can.
 		{
-			std::cerr << "Relative pathing not supported\n";
-			return -1;
+			auto temporaryworkingdir(workingdir);					//Make a temporary working dir so we can get consistent slashes.
+			auto nextbackslash = temporaryworkingdir.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
+			while (nextbackslash != std::string::npos)
+			{
+				temporaryworkingdir[nextbackslash] = '/';
+				nextbackslash = temporaryworkingdir.find('\\', nextbackslash);
+			}
+			if (temporaryworkingdir.find_first_of('/') == temporaryworkingdir.find_last_of('/'))	//If directory is './' then we can't go any higher.
+			{
+				std::cerr << "Relative path higher than root directory.\n";
+				return -1;
+			}
+			//Consider workingdir- looks like one of three things.
+			// ./path\to/file (mixed slashes, we fix that in a minute but can deal with it for now)
+			// ./ (we are in the root directory)
+			// ./path/to\file\ (mixed slashes with a slash on the end, we want to keep track of that last slash and drop stuff in the middle.
+			std::string relativename;
+			relativename = filename;
+			bool endslash = false;
+			if (workingdir[workingdir.size()-1] == '/' || workingdir[workingdir.size()-1] == '\\')
+			{
+				endslash = true;
+				workingdir.pop_back();	//take off the trailing slash and put it back after parsing.
+			}
+			while (relativename.find("..\\")!=std::string::npos||relativename.find("../")!=std::string::npos)			//TODO: finish this parser.
+			{
+				if (relativename.find("..\\") != std::string::npos)
+					relativename = relativename.substr(relativename.find("..\\") + 3);
+				else if (relativename.find("../")!=std::string::npos)
+					relativename = relativename.substr(relativename.find("../") + 3);
+				auto lastbslash = workingdir.find_last_of('\\');
+				auto lastfslash = workingdir.find_last_of('/');
+				if (lastbslash == std::string::npos) lastbslash = 0;
+				if (lastfslash == std::string::npos)	lastfslash = 0;
+				if (lastbslash > lastfslash)
+				{
+					workingdir = workingdir.substr(0, lastbslash);
+				}
+				else
+					workingdir = workingdir.substr(0, lastfslash);
+			}
+			if (endslash == true)
+			{
+				workingdir.push_back('/');
+			}
+			filename = relativename;
 		}
-		auto nextbackslash = filename.find('\\', 0);	//Switch all of the backslashes to forwardslashes, for consistency's sake.
-		while (nextbackslash != std::string::npos)
-		{
-			filename[nextbackslash] = '/';
-			nextbackslash = filename.find('\\', nextbackslash);
-		}
+
 		auto lastslash = filename.find_last_of('/');
 		workingdir += filename.substr(0, lastslash + 1);		//add the relative path to filedir
 		filename = filename.substr(lastslash + 1);		//Remove path from filename, so now it should look like "file.stp"
@@ -92,8 +142,8 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 {
 	if (rru == NULL) return -1;
 	//std::cout << "\t" << rru->user_att()->name() << ", id: " << rru->user()->entity_id() << std::endl;
-
-	if (rru->user_att()->isSelect()) {
+	if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) return 0;
+	else if (rru->user_att()->isSelect()) {
 
 		RoseDomain * selectdomain = rru->user_att()->slotDomain();
 		RoseObject * sel = rru->user()->design()->pnewInstance(selectdomain);
@@ -103,8 +153,7 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 			rru->user_idx()
 			);
 		rose_put_nested_object((RoseUnion*)sel, obj);
-	}
-	if (rru->user_att()->isa(ROSE_DOMAIN(RoseReference))) return 0;
+	} 
 	else{
 		rru->user()->putObject(obj, rru->user_att(), rru->user_idx());	//Replace any object attributes that point to the reference. Now they point to the object we moved from the child.
 	}
@@ -119,12 +168,18 @@ int ResolveRRU(RoseRefUsage * rru, RoseObject * obj)
 //	1 on References Blacklisted File
 //	2 on Doesn't Reference Whitelisted File
 // -2 on Download Failure
-int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir="./")
+// -3 on Reference without URI
+int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir="./",bool shouldloop=true)
 {
 	std::string reffile, anchor;
 	std::string filedir = workingdir;				//we need to know what directory the file is in, start at working dir and build the relative path in URIParse.
 	int URIReturnValue = URIParse(ref->uri(), reffile, anchor, filedir); //Get the strings we need out of the URI.
-	if (0 != URIReturnValue) return URIReturnValue;	
+	if (0 != URIReturnValue)
+	{
+		if (URIReturnValue == -3)
+			std::cerr << "\t(File " << output->name() << ")\n";
+		return URIReturnValue;
+	}
 	//Now we can open the file and find the specific item referenced by the anchor.
 	if (blacklist)
 	{
@@ -164,10 +219,36 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 	RoseCursor curser;
 	curser.traverse(child->reference_section());
 	curser.domain(ROSE_DOMAIN(RoseReference));
-	if (curser.size() > 0)
+	if (curser.size() > 0 &&shouldloop==true)
 	{
 		std::cout << "File " << child->name() << " has children.\n";
-		MoveAllReferences(child, filedir);	//If the child has references, we resolve them before anything else.
+		bool isloop = false;
+		if (auto tmpobj = ROSE_CAST(RoseReference, curser.next()))	//Make sure the child isn't our immediate parent.
+		{
+			std::string testname,testanc,testdir(workingdir);
+			URIParse(tmpobj->uri(), testname, testanc, testdir);//Parse the reference. All we really need is testname.
+			testname=testname.substr(0, testname.find_last_of('.'));
+			std::string testparent(output->name());
+			auto tstpos =testparent.find_last_of('/');
+			if (tstpos!=std::string::npos)
+			{
+				tstpos++;	//don't want the slash.
+				testparent = testparent.substr(tstpos, testparent.size() - tstpos);
+			}
+			if ( testname== testparent)	//We are looping!
+			{
+				do
+				{
+					int tmpret = AddItem(tmpobj, child, workingdir, false);	//Oh good this happens to be a function for resolving references.
+					if (tmpret != 0) return tmpret;
+				} while (tmpobj = ROSE_CAST(RoseReference, curser.next()));
+				isloop = true;
+			}
+		}
+		if (isloop == false)
+		{
+			if (0 != MoveAllReferences(child, filedir)) return -1;	//If the child has references, we resolve them before anything else.
+		}
 	}
 	RoseObject *obj = child->findObject(anchor.c_str());	//Get the object associated with the anchor
 	if (!obj)
@@ -175,11 +256,11 @@ int AddItem(RoseReference *ref, RoseDesign* output,const std::string workingdir=
 		std::cout << "Anchor " << anchor << " not found in file: " << reffile <<'\n';
 		return -1;	//Couldn't find the anchor.
 	}
-	if (-1 == PutItem(obj, output))	//Move the object (which is currently in the child file) into the new output file.
+/*	if (-1 == PutItem(obj, output))	//Move the object (which is currently in the child file) into the new output file.
 	{
 		//Something went wrong. This can't happen at the present, but in theory a change to PutItem could allow for it.
 		return -1;
-	}
+	}*/
 	//Now that we have moved the item into the new domain,
 	//We need to update the items that use the references.
 	RoseRefUsage *rru = ref->usage();	//rru is a linked list of all the objects that use ref
@@ -260,16 +341,44 @@ int MoveAllReferences(RoseDesign *design, const std::string workingdir)	//Given 
 		int returnval = AddItem(ROSE_CAST(RoseReference, obj), design, workingdir);
 		if (-1 == returnval)	//Horrible failure. Quit while we're ahead.
 		{
-			std::cerr << "Error parsing reference\n";
+			std::cerr << "Error parsing reference in " << design->name() <<"\n";
+			return EXIT_FAILURE;
+		}
+		if (-2 == returnval)
+		{
+			std::cerr << "Error downloading file\n";
+			return EXIT_FAILURE;
+		}
+		if (-3 == returnval)
+		{
+			std::cerr << "Reference contains no URI.\n";
 			return EXIT_FAILURE;
 		}
 		else if (0 == returnval)	//Reference successfully transplanted.
 		{
 			rose_move_to_trash(obj);
 		}
-		//TODO: Maybe add stuff for black/white-list cases and download error?
 	}
 
+	return 0;
+}
+
+//Given a design, moves all other designs in memory into that design. Returns 0 on completion.
+int moveeverything(RoseDesign * out)
+{
+	ListOfRoseDesign * designs = ROSE.workspaceDesigns();
+	for (unsigned i = 0, sz = designs->size(); i < sz; i++)
+	{
+		auto des = designs->get(i);
+		if (des == out || des->isSchema () || des == rose_trash () ) continue;
+
+		RoseCursor cursor;
+		cursor.traverse(des);
+		RoseObject *obj;
+		while (NULL != (obj = cursor.next())) {
+			rose_move_to_design(obj, out);
+		}
+	}
 	return 0;
 }
 
@@ -303,29 +412,45 @@ int main(int argc, char* argv[])
 		chdir(infilename.substr(0, pos).c_str());
 	}
 	/* Create a RoseDesign to hold the output data*/
-	RoseDesign * master = ROSE.useDesign(infilename.data());
+	RoseDesign * master = ROSE.useDesign(infilename.c_str());
 	if (!master)
 	{
 		std::cerr << "Error opening input file" << std::endl;
 		return EXIT_FAILURE;
 	}
-	if(!outfilename.find_first_of('/')&&!outfilename.find_first_of('\\')) outfilename = "./" + outfilename;
-	master->saveAs(outfilename.data());
-	RoseDesign * design = ROSE.useDesign(outfilename.data());
+	std::string outdirname;
+	if(outfilename.find_first_of('/')||outfilename.find_first_of('\\'))
+	{
+		auto lastbslash = outfilename.find_last_of('\\');
+		lastbslash = (lastbslash == std::string::npos) ? 0 : lastbslash;
+		auto lastfslash = outfilename.find_last_of('/');
+		lastfslash = (lastfslash == std::string::npos) ? 0 : lastfslash;
+		if (lastfslash > lastbslash) lastbslash = lastfslash;
+		outdirname=(outfilename.substr(0,lastbslash+1));
+		outfilename = outfilename.substr(lastbslash, outfilename.size() - lastbslash);
+	}
+	else outdirname = "./";
+/*	master->saveAs(outfilename.data());
+//	RoseDesign * design = ROSE.useDesign(outfilename.c_str());
 	if (!design)
 	{
 		std::cerr << "Error opening output file" << std::endl;
 		return EXIT_FAILURE;
-	}
+	}*/
 	//Design now contains the entire parent file.
-	int retval = MoveAllReferences(design,master->fileDirectory());
+	if (outfilename.find(".stp")) outfilename = outfilename.substr(0, outfilename.size() - 4);
+	master->name(outfilename.c_str());
+	int retval = MoveAllReferences(master,master->fileDirectory());
+	moveeverything(master);
 	for (auto i : downloaded)
 	{
 		//Remove temporary files
-		DeleteFileA(i.data());
+//		DeleteFileA(i.data());
 	}
 	rose_empty_trash();	//This deletes the reference from the new file, since we've replaced it with a local copy of the referenced object and it's children.
-	design->save();
+	//design->name(outfilename.c_str());
+	master->fileDirectory(outdirname.c_str());
+	master->save();
 	return retval;
 }
 
