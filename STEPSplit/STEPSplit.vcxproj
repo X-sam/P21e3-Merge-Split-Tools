@@ -72,7 +72,7 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stix;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpman;$(ROSE_INCLUDE)/stpman_arm</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ROSE_INCLUDE);$(ROSE_INCLUDE)/stixbase;$(ROSE_INCLUDE)/stix;$(ROSE_INCLUDE)/stmodule;$(ROSE_INCLUDE)/stpcad;$(ROSE_INCLUDE)/stpcad_arm</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

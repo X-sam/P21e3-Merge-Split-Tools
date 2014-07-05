@@ -26,9 +26,9 @@
 #include "scan.h"
 #include "ARMRange.h"
 
-#pragma comment(lib,"stpman_stix.lib")
-#pragma comment(lib,"stpman.lib")
-#pragma comment(lib,"stpman_arm.lib")
+#pragma comment(lib,"stpcad_stix.lib")
+#pragma comment(lib,"stpcad.lib")
+#pragma comment(lib,"stpcad_arm.lib")
 
 ListOfRoseDesign schemas;
 
@@ -40,8 +40,8 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 Workpiece * find_root_workpiece(RoseDesign * des);
 RoseDesign *export_workpiece(Workpiece * piece, const char * stp_file_name, bool is_master);
 bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool is_master);
-bool find_approval_contents(ListOfRoseObject &exports, Approval * approval);
-bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa);
+//bool find_approval_contents(ListOfRoseObject &exports, Approval * approval);
+//bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa);
 bool find_style_contents(ListOfRoseObject &exports, Workpiece *piece, bool is_master);
 bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, bool is_master);
 RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned depth, const char * root_dir);
@@ -150,7 +150,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		exported_name.push_back(outfilename);
 		outfilename = outfilename + ".stp";
 		RoseDesign *sub_des = export_workpiece(child, outfilename.c_str(), false);
-		std::cout << "Writing child to file: " << outfilename << std::endl;
+		std::cout << "Writing child to file: " << outfilename << " (" << i << "/" << children.size() << ")\n";
 
 		//	ARMsave (sub_des);
 		Workpiece *exported_child = find_root_workpiece(sub_des);
@@ -574,43 +574,104 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 						exports.add(amp3[i]);
 				}
 
-				Surface_texture_parameter_IF *surfy = tmp3->castToSurface_texture_parameter_IF();
-				if (surfy && surfy->get_applied_to() == cally.getRoot()) {
-					ListOfRoseObject amp3;
-					surfy->getAIMObjects(&amp3);
-					for (i = 0; i < amp3.size(); i++)
-						exports.add(amp3[i]);
-				}
+//				Surface_texture_parameter_IF *surfy = tmp3->castToSurface_texture_parameter_IF();
+//				if (surfy && surfy->get_applied_to() == cally.getRoot()) {
+//					ListOfRoseObject amp3;
+//					surfy->getAIMObjects(&amp3);
+//					for (i = 0; i < amp3.size(); i++)
+//						exports.add(amp3[i]);
+//				}
 			}
 		}
 	}
-
-	//Alas, the following case cannot be traversed with a simple ARM_RANGE- Single_datum_IF doesn't have a RoseManagerType!
-	ARMCursor cur;
-	cur.traverse(piece->getRootObject()->design());
-	ARMObject * tmp2;
-	while (NULL != (tmp2 = cur.next())) {
-
-		Single_datum_IF *datty = tmp2->castToSingle_datum_IF();
-		if (datty) {
-			if (datty->get_its_workpiece() == piece->getRoot()) {
-				ListOfRoseObject amp2;
-				datty->getAIMObjects(&amp2);
-				for (i = 0; i < amp2.size(); i++)
-					exports.add(amp2[i]);
-				for (auto dat : ARM_RANGE(Datum_reference, piece->getRootObject()->design()))
+	auto des = piece->getRootObject()->design();
+	for (auto i : ARM_RANGE(Datum_defined_by_derived_shape, des)) 
+	{
+		if (i.get_its_workpiece() == piece->getRoot())
+		{
+			ListOfRoseObject amp2;
+			i.getAIMObjects(&amp2);
+			for (auto j = 0u, sz = amp2.size(); j < sz; j++)
+				exports.add(amp2[j]);
+			for (auto dat : ARM_RANGE(Datum_reference, des))
+			{
+				if (dat.get_referenced_datum() == i.getRootObject())
 				{
-					if (dat.get_referenced_datum() == datty->getRootObject()) {
-						ListOfRoseObject amp3;
-						dat.getAIMObjects(&amp3);
-						for (i = 0; i < amp3.size(); i++)
-							exports.add(amp3[i]);
-
-					}
+					amp2.emptyYourself();
+					dat.getAIMObjects(&amp2);
+					for (auto j = 0u, sz = amp2.size(); j < sz; j++)
+						exports.add(amp2[j]);
+				}
+			}
+		}
+	} 
+	for (auto i : ARM_RANGE(Datum_defined_by_feature, des)) 
+	{
+		if (i.get_its_workpiece() == piece->getRoot())
+		{
+			ListOfRoseObject amp2;
+			i.getAIMObjects(&amp2);
+			for (auto j = 0u, sz = amp2.size(); j < sz; j++)
+				exports.add(amp2[j]);
+			for (auto dat : ARM_RANGE(Datum_reference, des))
+			{
+				if (dat.get_referenced_datum() == i.getRootObject())
+				{
+					amp2.emptyYourself();
+					dat.getAIMObjects(&amp2);
+					for (auto j = 0u, sz = amp2.size(); j < sz; j++)
+						exports.add(amp2[j]);
+				}
+			}
+		}
+	} 
+	for (auto i : ARM_RANGE(Datum_defined_by_targets, des))
+	{
+		if (i.get_its_workpiece() == piece->getRoot())
+		{
+			ListOfRoseObject amp2;
+			i.getAIMObjects(&amp2);
+			for (auto j = 0u, sz = amp2.size(); j < sz; j++)
+				exports.add(amp2[j]);
+			for (auto dat : ARM_RANGE(Datum_reference, des))
+			{
+				if (dat.get_referenced_datum() == i.getRootObject())
+				{
+					amp2.emptyYourself();
+					dat.getAIMObjects(&amp2);
+					for (auto j = 0u, sz = amp2.size(); j < sz; j++)
+						exports.add(amp2[j]);
 				}
 			}
 		}
 	}
+//=====Following code is replaced by the above three loops.	
+//	ARMCursor cur;
+//	cur.traverse(piece->getRootObject()->design());
+//	ARMObject * tmp2;
+//	while (NULL != (tmp2 = cur.next())) {
+//
+//		Single_datum_IF *datty = tmp2->castToSingle_datum_IF();
+//		if (datty) {
+//			if (datty->get_its_workpiece() == piece->getRoot()) {
+//				ListOfRoseObject amp2;
+//				datty->getAIMObjects(&amp2);
+//				for (i = 0; i < amp2.size(); i++)
+//					exports.add(amp2[i]);
+//				for (auto dat : ARM_RANGE(Datum_reference, piece->getRootObject()->design()))
+//				{
+//					if (dat.get_referenced_datum() == datty->getRootObject()) {
+//						ListOfRoseObject amp3;
+//						dat.getAIMObjects(&amp3);
+//						for (i = 0; i < amp3.size(); i++)
+//							exports.add(amp3[i]);
+//
+//					}
+//				}
+//			}
+//		}
+//	}
+//=====This ends the replaced code.
 
 	// assuming recursive descent OK and that other code will remove duplicates when subassembly repeated
 	unsigned count = piece->its_components.size();
@@ -708,84 +769,84 @@ bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, boo
 	return false;
 }
 
-bool find_approval_contents(ListOfRoseObject &exports, Approval * ap)
-{
-
-	ListOfRoseObject tmp;
-	unsigned i;
-	unsigned j;
-
-	ap->getAIMObjects(&tmp);
-	for (i = 0; i < tmp.size(); i++)
-		exports.add(tmp[i]);
-
-	unsigned psize = ap->size_its_approving_person_organization();
-	for (j = 0; j < psize; j++) {
-		Approving_person_organization *peon =
-			Approving_person_organization::find(ap->get_its_approving_person_organization(j)->getValue());
-		if (peon) {
-			peon->getAIMObjects(&tmp);
-			for (i = 0; i < tmp.size(); i++)
-				exports.add(tmp[i]);
-		}
-	}
-
-	unsigned dsize = ap->size_date_time();
-	for (j = 0; j < dsize; j++) {
-		Approval_date_time *daty = Approval_date_time::find(ap->get_date_time(j)->getValue());
-		if (daty) {
-			daty->getAIMObjects(&tmp);
-			for (i = 0; i < tmp.size(); i++)
-				exports.add(tmp[i]);
-		}
-	}
-
-	return true;
-}
-
-bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa)
-{
-	ListOfRoseObject tmp;
-	unsigned i;
-	unsigned j;
-
-	sa->getAIMObjects(&tmp);
-	for (i = 0; i < tmp.size(); i++)
-		exports.add(tmp[i]);
-
-	Security_classification *sec = Security_classification::find(sa->get_classification());
-
-	if (sec) {
-		sec->getAIMObjects(&tmp);
-		for (i = 0; i < tmp.size(); i++)
-			exports.add(tmp[i]);
-		Approval *ap = Approval::find(sec->get_its_approval());
-		if (ap) {
-			find_approval_contents(exports, ap);
-		}
-		unsigned sizep = sec->size_person();
-		for (j = 0; j < sizep; j++) {
-			Assigned_person *peon = Assigned_person::find(sec->person[j]->getValue());
-			if (peon) {
-				peon->getAIMObjects(&tmp);
-				for (i = 0; i < tmp.size(); i++)
-					exports.add(tmp[i]);
-			}
-		}
-		unsigned sizet = sec->size_time();
-		for (j = 0; j < sizet; j++) {
-			Assigned_time *teon = Assigned_time::find(sec->time[j]->getValue());
-			if (teon) {
-				teon->getAIMObjects(&tmp);
-				for (i = 0; i < tmp.size(); i++)
-					exports.add(tmp[i]);
-			}
-		}
-
-	}
-
-	return true;
-}
+//bool find_approval_contents(ListOfRoseObject &exports, Approval * ap)
+//{
+//
+//	ListOfRoseObject tmp;
+//	unsigned i;
+//	unsigned j;
+//
+//	ap->getAIMObjects(&tmp);
+//	for (i = 0; i < tmp.size(); i++)
+//		exports.add(tmp[i]);
+//
+//	unsigned psize = ap->size_its_approving_person_organization();
+//	for (j = 0; j < psize; j++) {
+//		Approving_person_organization *peon =
+//			Approving_person_organization::find(ap->get_its_approving_person_organization(j)->getValue());
+//		if (peon) {
+//			peon->getAIMObjects(&tmp);
+//			for (i = 0; i < tmp.size(); i++)
+//				exports.add(tmp[i]);
+//		}
+//	}
+//
+//	unsigned dsize = ap->size_date_time();
+//	for (j = 0; j < dsize; j++) {
+//		Approval_date_time *daty = Approval_date_time::find(ap->get_date_time(j)->getValue());
+//		if (daty) {
+//			daty->getAIMObjects(&tmp);
+//			for (i = 0; i < tmp.size(); i++)
+//				exports.add(tmp[i]);
+//		}
+//	}
+//
+//	return true;
+//}
+//
+//bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa)
+//{
+//	ListOfRoseObject tmp;
+//	unsigned i;
+//	unsigned j;
+//
+//	sa->getAIMObjects(&tmp);
+//	for (i = 0; i < tmp.size(); i++)
+//		exports.add(tmp[i]);
+//
+//	Security_classification *sec = Security_classification::find(sa->get_classification());
+//
+//	if (sec) {
+//		sec->getAIMObjects(&tmp);
+//		for (i = 0; i < tmp.size(); i++)
+//			exports.add(tmp[i]);
+//		Approval *ap = Approval::find(sec->get_its_approval());
+//		if (ap) {
+//			find_approval_contents(exports, ap);
+//		}
+//		unsigned sizep = sec->size_person();
+//		for (j = 0; j < sizep; j++) {
+//			Assigned_person *peon = Assigned_person::find(sec->person[j]->getValue());
+//			if (peon) {
+//				peon->getAIMObjects(&tmp);
+//				for (i = 0; i < tmp.size(); i++)
+//					exports.add(tmp[i]);
+//			}
+//		}
+//		unsigned sizet = sec->size_time();
+//		for (j = 0; j < sizet; j++) {
+//			Assigned_time *teon = Assigned_time::find(sec->time[j]->getValue());
+//			if (teon) {
+//				teon->getAIMObjects(&tmp);
+//				for (i = 0; i < tmp.size(); i++)
+//					exports.add(tmp[i]);
+//			}
+//		}
+//
+//	}
+//
+//	return true;
+//}
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
@@ -823,3 +884,4 @@ std::string SafeName(std::string name){
 	}
 	return name;
 }
+

@@ -11,7 +11,7 @@ roseinclude = os.environ.get('ROSE_INCLUDE')
 if roseinclude == 'None' :
   print("ROSE_INCLUDE not found.")
   sys.exit(1)
-roseinclude+="\\stpman_arm\\ARMObject.h"  #we need the file ARMObject.h
+roseinclude+="\\stpcad_arm\\ARMObject.h"  #we need the file ARMObject.h
 file = open(roseinclude)
 if file.closed:
   print("Error opening ARMObject.h")
