@@ -37,7 +37,7 @@ def dirtraverse(dir,depth):
       print("Error finding STEPMerge.exe")
       sys.exit(1)
     if retval!=0:
-      print("Error Running Merge.")
+      print("Error Running Merge on " + masterleaf)
       sys.exit(1)
     try:
       shutil.move(masterout,"../"+finalname)
