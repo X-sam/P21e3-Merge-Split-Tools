@@ -29,6 +29,7 @@
 #pragma comment(lib,"stpcad_stix.lib")
 #pragma comment(lib,"stpcad.lib")
 #pragma comment(lib,"stpcad_arm.lib")
+#pragma comment(lib,"stmodule.lib")
 
 ListOfRoseDesign schemas;
 
