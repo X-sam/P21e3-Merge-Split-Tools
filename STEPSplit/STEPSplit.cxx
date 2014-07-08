@@ -151,7 +151,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 			fname = SafeName(fname);
 			outfilename += fname;
 		}
-		exported_name.push_back(outfilename);	//TODO: Name needs to include label as well as name.
+		exported_name.push_back(outfilename);
 		outfilename = outfilename + ".stp";
 		RoseDesign *sub_des = export_workpiece(child, outfilename.c_str(), false);
 		std::cout << "Writing child to file: " << outfilename << " (" << i+1 << "/" << children.size() << ")\n";
@@ -601,44 +601,6 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 					}
 				}
 			}
-//=======Excised code below
-			//ARMCursor cur3;
-			//cur3.traverse(piece->getRootObject()->design());
-			//ARMObject * tmp3;
-			//while (NULL != (tmp3 = cur3.next())) {
-			//	Geometric_tolerance_IF *tolly = tmp3->castToGeometric_tolerance_IF();
-			//	if (tolly && tolly->get_applied_to() == cally.getRoot()) {
-			//		ListOfRoseObject amp3;
-			//		tolly->getAIMObjects(&amp3);
-			//		for (i = 0; i < amp3.size(); i++)
-			//			exports.add(amp3[i]);
-			//	}
-
-			//	Size_dimension_IF *dimmy = tmp3->castToSize_dimension_IF();
-			//	if (dimmy && dimmy->get_applied_to() == cally.getRoot()) {
-			//		ListOfRoseObject amp3;
-			//		dimmy->getAIMObjects(&amp3);
-			//		for (i = 0; i < amp3.size(); i++)
-			//			exports.add(amp3[i]);
-			//	}
-
-			//	Location_dimension_IF *locy = tmp3->castToLocation_dimension_IF();
-			//	if (locy && (locy->get_target() == cally.getRoot() || locy->get_origin() == cally.getRoot())) {
-			//		ListOfRoseObject amp3;
-			//		locy->getAIMObjects(&amp3);
-			//		for (i = 0; i < amp3.size(); i++)
-			//			exports.add(amp3[i]);
-			//	}
-//				Surface_texture_parameter_IF *surfy = tmp3->castToSurface_texture_parameter_IF();
-//				if (surfy && surfy->get_applied_to() == cally.getRoot()) {
-//					ListOfRoseObject amp3;
-//					surfy->getAIMObjects(&amp3);
-//					for (i = 0; i < amp3.size(); i++)
-//						exports.add(amp3[i]);
-//				}
-//			}
-//=====Excised code above
-
 		}
 	}
 	auto des = piece->getRootObject()->design();
