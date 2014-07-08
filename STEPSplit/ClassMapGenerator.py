@@ -8,7 +8,7 @@ from __future__ import print_function
 import os,sys
 
 roseinclude = os.environ.get('ROSE_INCLUDE')
-if roseinclude == 'None' :
+if type(roseinclude) == 'None' :
   print("ROSE_INCLUDE not found.")
   sys.exit(1)
 roseinclude+="\\stpcad_arm\\ARMObject.h"  #we need the file ARMObject.h
