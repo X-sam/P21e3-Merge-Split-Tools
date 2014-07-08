@@ -5,6 +5,7 @@
 //Thanks to Joe & Dave
 //6/30/14
 
+
 #include <rose.h>
 #include <rose_p28.h>
 #include <stp_schema.h>
@@ -25,7 +26,7 @@
 
 #include "scan.h"
 #include "ARMRange.h"
-
+#include "ROSERange.h"
 #pragma comment(lib,"stpcad_stix.lib")
 #pragma comment(lib,"stpcad.lib")
 #pragma comment(lib,"stpcad_arm.lib")
@@ -37,7 +38,7 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 std::string SafeName(std::string name);
 
 // Routines written by MH & adapted by Samson
-bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth = 0);
+int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth = 0);
 Workpiece * find_root_workpiece(RoseDesign * des);
 RoseDesign *export_workpiece(Workpiece * piece, const char * stp_file_name, bool is_master);
 bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool is_master);
@@ -70,7 +71,7 @@ int main(int argc, char* argv[])
 	}
 	if (!rose_file_readable(infilename.c_str()))	//Make sure file is readable before we open it.
 	{
-		std::cout << "Error reading input file." << std::endl;
+		std::cerr << "Error reading input file." << std::endl;
 		return EXIT_FAILURE;
 	}
 	RoseDesign * original = ROSE.useDesign(infilename.c_str());
@@ -82,22 +83,22 @@ int main(int argc, char* argv[])
 	Workpiece *root = find_root_workpiece(original);
 	if (root == NULL)
 	{
-		std::cout << "No Workpiece found in input" <<std::endl;
+		std::cerr << "No Workpiece found in input" <<std::endl;
 		return EXIT_FAILURE;
 	}
 	// directroy for all the geometry files
-	std::cout << "Root name: " << root->get_its_id() <<'\n';
 	std::string outfile_directory(root->get_its_id());
-	unsigned sub_count = root->size_its_components();
 
-	mBomSplit(root, true, outfile_directory, outfile_directory.c_str());
-	return EXIT_SUCCESS;
+	return mBomSplit(root, true, outfile_directory, outfile_directory.c_str());
+
 }
 
-bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth)
+int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth)
 {
-	std::cout << "\n\nMaking directory " << path << "\n";
+//	std::cout << "\n\nMaking directory " << path << "\n";
 	rose_mkdir(path.c_str());
+	//Make a locally-scoped design to put all our trash in. we will move it to the trash when we are done.
+	RoseDesign *garbage = new RoseDesign;
 
 	// make directory for all the geometry components
 	if (depth == 0) {
@@ -108,7 +109,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 
 	//Get all of the child workpieces into a vector.
 	unsigned sub_count = root->size_its_components();
-	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
+//	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
 	std::vector<RoseObject*> children, exported_children;	//TODO: figure out why in gods name these are RoseObject * instead of Workpiece *. Seems like lots of unnecessary converting back and forth. I get the feeling there is no reason.
 	std::vector <RoseDesign *> subs;
 	std::vector <std::string> exported_name;
@@ -138,8 +139,10 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 
 		if (need_nuao) {
 			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
-			std::string fname(nauo->name());
+			std::string fname(nauo->id());
 			fname = SafeName(fname);
+			outfilename += fname;
+			fname = SafeName(nauo->name());
 			outfilename += fname;
 		}
 		else
@@ -148,10 +151,10 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 			fname = SafeName(fname);
 			outfilename += fname;
 		}
-		exported_name.push_back(outfilename);
+		exported_name.push_back(outfilename);	//TODO: Name needs to include label as well as name.
 		outfilename = outfilename + ".stp";
 		RoseDesign *sub_des = export_workpiece(child, outfilename.c_str(), false);
-		std::cout << "Writing child to file: " << outfilename << " (" << i << "/" << children.size() << ")\n";
+		std::cout << "Writing child to file: " << outfilename << " (" << i+1 << "/" << children.size() << ")\n";
 
 		//	ARMsave (sub_des);
 		Workpiece *exported_child = find_root_workpiece(sub_des);
@@ -175,7 +178,7 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 	master->addName("product_definition", master_root->getRootObject());
 	master->addName("shape_representation", master_root->get_its_geometry());
 
-	std::cout << "Writing master to file: " << outfilename << std::endl;
+//	std::cout << "Writing master to file: " << outfilename << std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
 	for (unsigned i = 0; i < sub_count; i++) {
@@ -187,34 +190,37 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 		{
 			itr = exported_name[i].find('/', itr + 1);
 		}
-		std::string subname(exported_name[i].begin() + itr + 1, exported_name[i].end());
-		std::cout << subname << '\n';
-		std::string dirname(subname);
-		dirname = "";   // new strategy is for master to go in same directory as children
+//		std::string subname(exported_name[i].begin() + itr + 1, exported_name[i].end());
+//		std::cout << subname << '\n';
+//		std::string dirname(subname);
+		std::string dirname = "";   // new strategy is for master to go in same directory as children
 
 		stp_product_definition *pd = comp->get_component();
 		stp_product_definition_formation *pdf = pd->formation();
 		stp_product *p = pdf->of_product();
-		rose_move_to_trash(p);
-		rose_move_to_trash(pdf);
-		rose_move_to_trash(pd);
+		rose_move_to_design(p,garbage);
+		rose_move_to_design(pdf,garbage);
+		rose_move_to_design(pd,garbage);
 
 		comp->put_component(exported_child->getRoot());
 		addRefAndAnchor(exported_child->getRoot(), subs[i], master, dirname);
 
 		ListOfRoseObject tmp;
-		comp->getAIMObjects(&tmp);
-		stp_representation_relationship *master_rep = NULL;
-		for (unsigned j = 0; j < tmp.size(); j++) {
-			if (tmp[j]->isa(ROSE_DOMAIN(stp_representation_relationship)))
-				master_rep = ROSE_CAST(stp_representation_relationship, tmp[j]);
+		
+		stp_representation_relationship *master_rep = 
+			ROSE_CAST(stp_representation_relationship,comp->getpath_resulting_orientation(&tmp)->get(3));
+		if (master_rep == nullptr)
+		{
+			std::cerr << "Error getting Representation Relationship.\n";
+			return EXIT_FAILURE;
 		}
+
 
 		stp_representation *rep = master_rep->rep_1();
 		master_rep->rep_1(exported_child->get_its_geometry());
 		addRefAndAnchor(exported_child->get_its_geometry(), subs[i], master, dirname);
-		rep->move(rose_trash(), -1);
-
+		rep->move(garbage, -1);
+//		rose_empty_trash();
 		//	    subs[i]->save ();
 		//	    ARMsave (subs[i]);
 	}
@@ -240,7 +246,8 @@ bool * mBomSplit(Workpiece *root, bool repeat, std::string path, const char * ro
 			}
 		}
 	}
-
+	rose_move_to_trash(garbage);
+	rose_empty_trash();
 	return 0;
 }
 
@@ -272,7 +279,7 @@ Workpiece *find_root_workpiece(RoseDesign *des)
 		{
 			if (root != NULL) //Some other candidate got here. That is no good.
 			{
-				std::cout << "Error input has two root assemblies: " << root->get_its_id()
+				std::cerr << "Error: input has two root assemblies: " << root->get_its_id()
 					<< " and " << candidate.get_its_id() << std::endl;
 				return NULL;
 			}
@@ -280,7 +287,7 @@ Workpiece *find_root_workpiece(RoseDesign *des)
 		}
 	}
 	if (root == NULL) {	//Oh dear. If this is true, then every candidate had parents. Must be a loop in the assemblies.
-		std::cout << "Error input has no root assembly: " << std::endl;
+		std::cerr << "Error: input has no root assembly: " << std::endl;
 		return NULL;
 	}
 	return root;
@@ -300,7 +307,7 @@ RoseDesign * export_workpiece(Workpiece * piece, const char * stp_file_name, boo
 
 	RoseDesign *new_des = ROSE.newDesign(stp_file_name);
 	ListOfRoseObject * new_list;
-	new_list = ROSE_CAST(ListOfRoseObject, exports.copy(new_des, INT_MAX,false)); // enough for selects and lists (10 was to few)
+	new_list = ROSE_CAST(ListOfRoseObject, exports.copy(new_des, INT_MAX,false)); 
 
 	//    printf ("Number of copied objects in file %s is %d\n", stp_file_name, new_list->size());
 	delete new_list;  /* Don't want the list itself in the new design */
@@ -337,7 +344,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	rose_mkdir(stp_file_name);
 
 	// directory that contains all the geometry
-	//TODO: break this out.
+	//TODO: break this out. Check if file already exists and skip making it if so.
 	std::string geometry(root_dir);
 	std::string pieceid(piece->get_its_id());
 	geometry += "/geometry_components/";
@@ -357,12 +364,11 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	//    std::string geo_file (stp_file_name);
 	//    geo_file = geo_file + "/geometry.stp";
 
-	std::cout <<"Writing geometry to " <<geometry <<'\n';
+	//std::cout <<"Writing geometry to " <<geometry <<'\n';
 	RoseDesign *geo_des = ROSE.newDesign(geometry.c_str());
 	ListOfRoseObject * geo_list;
 	geo_list = ROSE_CAST(ListOfRoseObject, geo_exports.copy(geo_des, INT_MAX));
 
-	std::cout << "Number of copied objects in geometry file " << stp_file_name << "_geo.stp is " << geo_list->size() << '\n';
 	delete geo_list;  /* Don't want the list itself in the new design */
 
 	stix_tag_units(geo_des);
@@ -393,7 +399,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ListOfRoseObject * style_list;
 	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des, INT_MAX)); // enough for selects and lists (10 was to few)
 
-	std::cout << "Number of copied objects in style file " << stp_file_name << "_pmi.stp is " << style_list->size() << '\n';
+	//std::cout << "Number of copied objects in style file " << stp_file_name << "_pmi.stp is " << style_list->size() << '\n';
 	delete style_list;  /* Don't want the list itself in the new design */
 
 	stix_tag_units(style_des);
@@ -405,7 +411,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	ARMCursor cur;
 	cur.traverse(style_des);
 	ARMObject * obj;
-	while (NULL != (obj = cur.next()))
+	while (NULL != (obj = cur.next()))			//TODO: fix this to use ARM_RANGE
 	{
 		if (!obj->castToSingle_styled_item())
 			continue;
@@ -419,7 +425,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 		if (ssi->get_its_geometry()) {
 			stp_representation_item *repi = ssi->get_its_geometry();
 			if (!repi->isa(ROSE_DOMAIN(stp_manifold_solid_brep))) {
-				std::cout <<"Warning: style found not applied to a manifold solid\n";
+				//std::cout <<"Warning: style found not applied to a manifold solid\n";
 				continue;
 			}
 			RoseReference *manifold = rose_make_ref(style_des, "master.stp#manifold_solid_brep");
@@ -431,8 +437,8 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	}
 
 
-	if (style_count != 0)
-		std::cout << "Added " << style_count << " styles to workpiece " << pieceid << '\n';
+//	if (style_count != 0)
+//		std::cout << "Added " << style_count << " styles to workpiece " << pieceid << '\n';
 
 	update_uri_forwarding(style_des);
 	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
@@ -500,16 +506,15 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool is_master)
 {
 	ListOfRoseObject tmp;
-	unsigned i,j;
 
 	piece->getpath_its_geometry(&tmp);
-	for (i = 0; i < tmp.size(); i++)
+	for (auto i = 0u; i < tmp.size(); i++)
 		exports.add(tmp[i]);
 
 	unsigned count2 = piece->its_related_geometry.size();
-	for (j = 0; j < count2; j++) {
+	for (auto j = 0u; j < count2; j++) {
 		piece->its_related_geometry[j]->getPath(&tmp);
-		for (i = 0; i < tmp.size(); i++)
+		for (auto i = 0u,sz=tmp.size(); i < sz; i++)
 			exports.add(tmp[i]);
 	}
 
@@ -534,7 +539,7 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 
 
 	piece->getAIMObjects(&tmp);
-	for (i = 0; i < tmp.size(); i++)
+	for (auto i = 0u, sz = tmp.size(); i < sz; i++)
 	{
 		if (!(tmp[i]->isa(ROSE_DOMAIN(stp_product_related_product_category))))
 			exports.add(tmp[i]);
@@ -544,37 +549,86 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 		if (cally.get_its_workpiece() == piece->getRoot()) {
 			ListOfRoseObject amp2;
 			cally.getAIMObjects(&amp2);
-			for (i = 0; i < amp2.size(); i++)
+			for (auto i = 0u, sz = amp2.size(); i < sz; i++)
+			{
 				exports.add(amp2[i]);
-
-			ARMCursor cur3;
-			cur3.traverse(piece->getRootObject()->design());
-			ARMObject * tmp3;
-			while (NULL != (tmp3 = cur3.next())) {
-				Geometric_tolerance_IF *tolly = tmp3->castToGeometric_tolerance_IF();
-				if (tolly && tolly->get_applied_to() == cally.getRoot()) {
-					ListOfRoseObject amp3;
-					tolly->getAIMObjects(&amp3);
-					for (i = 0; i < amp3.size(); i++)
-						exports.add(amp3[i]);
+			}
+			for (auto &i : ROSE_RANGE(stp_geometric_tolerance, piece->getRootObject()->design()))
+			{
+				auto tolly = Geometric_tolerance_IF::find(&i);
+				if (tolly)
+				{
+					if (tolly->get_applied_to() == cally.getRoot())
+					{
+						ListOfRoseObject amp3;
+						tolly->getAIMObjects(&amp3);
+						for (auto j = 0u, sz = amp3.size(); j < sz; j++)
+						{
+							exports.add(amp3[j]);
+						}
+					}
 				}
-
-				Size_dimension_IF *dimmy = tmp3->castToSize_dimension_IF();
-				if (dimmy && dimmy->get_applied_to() == cally.getRoot()) {
-					ListOfRoseObject amp3;
-					dimmy->getAIMObjects(&amp3);
-					for (i = 0; i < amp3.size(); i++)
-						exports.add(amp3[i]);
+			}
+			for (auto &i : ROSE_RANGE(stp_dimensional_size, piece->getRootObject()->design()))
+			{
+				auto tolly = Size_dimension_IF::find(&i);
+				if (tolly)
+				{
+					if (tolly->get_applied_to() == cally.getRoot())
+					{
+						ListOfRoseObject amp3;
+						tolly->getAIMObjects(&amp3);
+						for (auto j = 0u, sz = amp3.size(); j < sz; j++)
+						{
+							exports.add(amp3[j]);
+						}
+					}
 				}
-
-				Location_dimension_IF *locy = tmp3->castToLocation_dimension_IF();
-				if (locy && (locy->get_target() == cally.getRoot() || locy->get_origin() == cally.getRoot())) {
-					ListOfRoseObject amp3;
-					locy->getAIMObjects(&amp3);
-					for (i = 0; i < amp3.size(); i++)
-						exports.add(amp3[i]);
+			}
+			for (auto &i : ROSE_RANGE(stp_dimensional_location, piece->getRootObject()->design()))
+			{
+				auto tolly = Location_dimension_IF::find(&i);
+				if (tolly)
+				{
+					if (tolly->get_target() == cally.getRoot() || tolly->get_origin() == cally.getRoot())
+					{
+						ListOfRoseObject amp3;
+						tolly->getAIMObjects(&amp3);
+						for (auto j = 0u, sz = amp3.size(); j < sz; j++)
+						{
+							exports.add(amp3[j]);
+						}
+					}
 				}
+			}
+//=======Excised code below
+			//ARMCursor cur3;
+			//cur3.traverse(piece->getRootObject()->design());
+			//ARMObject * tmp3;
+			//while (NULL != (tmp3 = cur3.next())) {
+			//	Geometric_tolerance_IF *tolly = tmp3->castToGeometric_tolerance_IF();
+			//	if (tolly && tolly->get_applied_to() == cally.getRoot()) {
+			//		ListOfRoseObject amp3;
+			//		tolly->getAIMObjects(&amp3);
+			//		for (i = 0; i < amp3.size(); i++)
+			//			exports.add(amp3[i]);
+			//	}
 
+			//	Size_dimension_IF *dimmy = tmp3->castToSize_dimension_IF();
+			//	if (dimmy && dimmy->get_applied_to() == cally.getRoot()) {
+			//		ListOfRoseObject amp3;
+			//		dimmy->getAIMObjects(&amp3);
+			//		for (i = 0; i < amp3.size(); i++)
+			//			exports.add(amp3[i]);
+			//	}
+
+			//	Location_dimension_IF *locy = tmp3->castToLocation_dimension_IF();
+			//	if (locy && (locy->get_target() == cally.getRoot() || locy->get_origin() == cally.getRoot())) {
+			//		ListOfRoseObject amp3;
+			//		locy->getAIMObjects(&amp3);
+			//		for (i = 0; i < amp3.size(); i++)
+			//			exports.add(amp3[i]);
+			//	}
 //				Surface_texture_parameter_IF *surfy = tmp3->castToSurface_texture_parameter_IF();
 //				if (surfy && surfy->get_applied_to() == cally.getRoot()) {
 //					ListOfRoseObject amp3;
@@ -582,7 +636,9 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 //					for (i = 0; i < amp3.size(); i++)
 //						exports.add(amp3[i]);
 //				}
-			}
+//			}
+//=====Excised code above
+
 		}
 	}
 	auto des = piece->getRootObject()->design();
@@ -676,7 +732,7 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 
 	// assuming recursive descent OK and that other code will remove duplicates when subassembly repeated
 	unsigned count = piece->its_components.size();
-	for (j = 0; j < count; j++) {
+	for (auto j = 0u; j < count; j++) {
 
 		//	trace.error ("Assembly %d of %d", i, count);
 
@@ -685,7 +741,7 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 			continue;
 
 		ass->getAIMObjects(&tmp);
-		for (i = 0; i < tmp.size(); i++)
+		for (auto i = 0u,sz=tmp.size(); i < sz; i++)
 			exports.add(tmp[i]);
 
 		Workpiece *child = Workpiece::find(ass->get_component());
@@ -732,13 +788,13 @@ bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, boo
 
 	if (piece->get_its_geometry()) {
 		stp_representation *rep = piece->get_its_geometry();
-		for (unsigned i = 0; i < rep->items()->size(); i++) {
+		for (auto i = 0u,sz=rep->items()->size(); i < sz; i++) {
 			if (rep->items()->get(i) == repi) {
 				return true;
 			}
 		}
 	}
-	for (unsigned i = 0; i < piece->size_its_related_geometry(); i++) {
+	for (auto i = 0u, sz = piece->size_its_related_geometry(); i < sz; i++) {
 		stp_representation *rep = piece->get_its_related_geometry(i)->getValue();
 		for (unsigned j = 0; j < rep->items()->size(); j++) {
 			if (rep->items()->get(j) == repi) {
@@ -754,7 +810,6 @@ bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, boo
 	unsigned count = piece->its_components.size();
 	for (unsigned j = 0; j < count; j++) {
 
-		//	trace.error ("Assembly %d of %d", i, count);
 
 		Workpiece_assembly_component *ass = Workpiece_assembly_component::find(piece->its_components[j]->getValue());
 		if (ass == NULL)
@@ -877,12 +932,14 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	return ref;
 }
 
-std::string SafeName(std::string name){
-	for (auto &c : name)
+std::string SafeName(const std::string name)
+{
+	auto name2 = name;
+	for (auto &c : name2)
 	{
 		if (isspace(c) || c < 32 || c == '<' || c == '>' || c == ':' || c == '\"' || c == '\\' || c == '/' || c == '|' || c == '?' || c == '*')
 			c = '_';
 	}
-	return name;
+	return name2;
 }
 
