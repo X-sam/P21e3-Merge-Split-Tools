@@ -46,7 +46,7 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 //bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa);
 bool find_style_contents(ListOfRoseObject &exports, Workpiece *piece, bool is_master);
 bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, bool is_master);
-RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned depth, const char * root_dir);
+RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned depth, const char * root_dir);
 
 
 int main(int argc, char* argv[])
@@ -110,7 +110,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 	//Get all of the child workpieces into a vector.
 	unsigned sub_count = root->size_its_components();
 //	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
-	std::vector<RoseObject*> children, exported_children;	//TODO: figure out why in gods name these are RoseObject * instead of Workpiece *. Seems like lots of unnecessary converting back and forth. I get the feeling there is no reason.
+	std::vector<Workpiece*> children, exported_children;
 	std::vector <RoseDesign *> subs;
 	std::vector <std::string> exported_name;
 	for (unsigned i = 0; i < sub_count; i++) {
@@ -118,13 +118,13 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		if (comp == NULL) continue;
 		Workpiece * child = Workpiece::find(comp->get_component());
 		if (child == NULL) continue;
-		children.push_back(child->getRoot());
+		children.push_back(child);
 	}
 	//For each child, find out if it needs an NAUO attached. Attach one if necessary.
-	for (unsigned i = 0; i < children.size(); i++) {
-		Workpiece *child = Workpiece::find(children[i]);
+	for (unsigned i = 0u,sz=children.size(); i < sz; i++) {
+		Workpiece *child = children[i];
 		bool need_nuao = false;
-		for (unsigned j = 0; j < children.size(); j++) {
+		for (auto j = 0u; j < sz; j++) {
 			if (j == i) continue;
 			if (children[j] == children[i]) {
 				need_nuao = true;
@@ -141,7 +141,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
 			std::string fname(nauo->id());
 			fname = SafeName(fname);
-			outfilename += fname;
+			outfilename += fname +'-';
 			fname = SafeName(nauo->name());
 			outfilename += fname;
 		}
@@ -159,7 +159,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		//	ARMsave (sub_des);
 		Workpiece *exported_child = find_root_workpiece(sub_des);
 		subs.push_back(sub_des);
-		exported_children.push_back(exported_child->getRoot());
+		exported_children.push_back(exported_child);
 
 	}
 
@@ -181,8 +181,8 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 //	std::cout << "Writing master to file: " << outfilename << std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
-	for (unsigned i = 0; i < sub_count; i++) {
-		Workpiece * exported_child = Workpiece::find(exported_children[i]);
+	for (auto i = 0u; i < sub_count; i++) {
+		Workpiece * exported_child = exported_children[i];
 		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(master_root->get_its_components(i)->getValue());
 		if (comp == NULL) continue;
 		auto itr = exported_name[i].find_first_of('/');
@@ -220,35 +220,38 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		master_rep->rep_1(exported_child->get_its_geometry());
 		addRefAndAnchor(exported_child->get_its_geometry(), subs[i], master, dirname);
 		rep->move(garbage, -1);
-//		rose_empty_trash();
-		//	    subs[i]->save ();
-		//	    ARMsave (subs[i]);
+
 	}
 
 	update_uri_forwarding(master);
-	//	master->save ();
+
 	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
 	{
 		master->addSchema(schemas.get(i));
 	}
 	ARMsave(master);
 
-	if (repeat) {
-		for (unsigned i = 0; i < exported_children.size(); i++) {
-			Workpiece * exported_child = Workpiece::find(exported_children[i]);
-			if (exported_child->size_its_components() > 0) {
+	if (repeat) 
+	{
+		for (unsigned i = 0u,sz=exported_children.size(); i < sz; i++) 
+		{
+			Workpiece * exported_child = exported_children[i];
+			if (exported_child->size_its_components() > 0) 
+			{
 				std::string sub_path(exported_name[i]);
 				mBomSplit(exported_child, repeat, sub_path, root_dir, depth + 1);
 			}
-			else {
-				split_pmi(exported_child, exported_name[i].c_str(), depth, root_dir);
+			else 
+			{
+				RoseDesign * result =split_pmi(exported_child, exported_name[i].c_str(), depth, root_dir);
+				if (result != nullptr) result->move(garbage, -1);	//Don't need the geometry in memory.
 				//		ARMsave (subs[i]);
 			}
 		}
 	}
 	rose_move_to_trash(garbage);
-	rose_empty_trash();
-	return 0;
+	if(depth < 2) rose_empty_trash();	//Don't empty the trash too often, it's slow.
+	return EXIT_SUCCESS;
 }
 
 Workpiece *find_root_workpiece(RoseDesign *des)
@@ -336,29 +339,24 @@ RoseDesign * export_workpiece(Workpiece * piece, const char * stp_file_name, boo
 
 }
 
-RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned depth, const char *root_dir)
+
+RoseDesign *move_geometry(Workpiece * piece, const char * root_dir)
 {
-	if (piece == NULL)
-		return false;
-
-	rose_mkdir(stp_file_name);
-
-	// directory that contains all the geometry
-	//TODO: break this out. Check if file already exists and skip making it if so.
+	// directory that contains all the geometry	
 	std::string geometry(root_dir);
 	std::string pieceid(piece->get_its_id());
 	geometry += "/geometry_components/";
 	geometry += pieceid;
 	geometry += ".stp";
-
+	if (rose_file_exists(geometry.c_str()))
+	{
+		return nullptr;
+	}
 	ListOfRoseObject geo_exports;
-	ListOfRoseObject style_exports;
 	find_workpiece_contents(geo_exports, piece, false);
-	find_style_contents(style_exports, piece, false);
 
 	/* After getting all the properties: do the following: */
 	ARMresolveReferences(&geo_exports);
-	ARMresolveReferences(&style_exports);
 
 	// for making local copy in current directory
 	//    std::string geo_file (stp_file_name);
@@ -384,13 +382,29 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 	RoseObject *mani = objs.next();
 	if (mani != NULL)
 		geo_des->addName("manifold_solid_brep", mani);
-	
+
 	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
 	{
 		geo_des->addSchema(schemas.get(i));
 	}
 
-	Workpiece *geo_piece = find_root_workpiece(geo_des);
+	ARMsave(geo_des);
+	return geo_des;
+}
+
+RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned depth, const char *root_dir)
+{
+	if (piece == NULL)
+		return false;
+
+	rose_mkdir(stp_file_name);
+
+	RoseDesign * geo_des = move_geometry(piece, root_dir);
+	std::string pieceid(piece->get_its_id());
+
+	ListOfRoseObject style_exports;
+	find_style_contents(style_exports, piece, false);
+	ARMresolveReferences(&style_exports);
 
 	std::string pmi_file(stp_file_name);
 	pmi_file += "/pmi.stp";
@@ -446,7 +460,7 @@ RoseDesign * split_pmi(Workpiece * piece, const char * stp_file_name, unsigned d
 		style_des->addSchema(schemas.get(i));
 	}
 	ARMsave(style_des);
-	ARMsave(geo_des);
+
 
 	std::string master_file(stp_file_name);
 	master_file += "/master.stp";
