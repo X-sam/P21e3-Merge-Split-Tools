@@ -32,7 +32,7 @@
 #pragma comment(lib,"stpcad_arm.lib")
 #pragma comment(lib,"stmodule.lib")
 
-ListOfRoseDesign schemas;
+StplibSchemaType schemas;	//Used so that all split output has the same schema as the input file.
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 std::string SafeName(std::string name);
@@ -77,9 +77,7 @@ int main(int argc, char* argv[])
 	RoseDesign * original = ROSE.useDesign(infilename.c_str());
 	stix_tag_units(original);
 	ARMpopulate(original);
-	
-	schemas = *original->schemas();	//Load the schemas from original. They have to go in all of the child files.
-
+	schemas = stplib_get_schema(original);	//Load the schemas from original. They have to go in all of the child files.
 	Workpiece *root = find_root_workpiece(original);
 	if (root == NULL)
 	{
@@ -225,10 +223,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 	update_uri_forwarding(master);
 
-	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
-	{
-		master->addSchema(schemas.get(i));
-	}
+	stplib_put_schema(master, schemas);
 	ARMsave(master);
 
 	if (repeat) 
@@ -373,8 +368,9 @@ RoseDesign *move_geometry(Workpiece * piece, const char * root_dir)
 	ARMpopulate(geo_des);
 	Workpiece * component_piece = find_root_workpiece(geo_des);
 
-	geo_des->addName("product_definition", component_piece->getRoot());
-	geo_des->addName("shape_representation", component_piece->get_its_geometry());
+	//TODO: Make a list of things that reference geometry and anchor them here.
+	geo_des->addName(component_piece->getRoot()->domain()->name(), component_piece->getRoot());
+	geo_des->addName(component_piece->get_its_geometry()->domain()->name(), component_piece->get_its_geometry());
 
 	RoseCursor objs;
 	objs.traverse(geo_des);
@@ -383,11 +379,7 @@ RoseDesign *move_geometry(Workpiece * piece, const char * root_dir)
 	if (mani != NULL)
 		geo_des->addName("manifold_solid_brep", mani);
 
-	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
-	{
-		geo_des->addSchema(schemas.get(i));
-	}
-
+	stplib_put_schema(geo_des, schemas);
 	ARMsave(geo_des);
 	return geo_des;
 }
@@ -421,44 +413,29 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 
 	Styled_geometric_model * new_model = NULL;
 	int style_count = 0;
-	//for (auto ssi : ARM_RANGE(Single_styled_item,style_des))
-	ARMCursor cur;
-	cur.traverse(style_des);
-	ARMObject * obj;
-	while (NULL != (obj = cur.next()))			//TODO: fix this to use ARM_RANGE
+	for (auto &ssi : ARM_RANGE(Single_styled_item, style_des))
 	{
-		if (!obj->castToSingle_styled_item())
-			continue;
-		Single_styled_item * ssi = obj->castToSingle_styled_item();
 		if (new_model == NULL) {
 			new_model = Styled_geometric_model::newInstance(style_des);
 			style_des->addName("styles", new_model->getRoot());
 		}
-		new_model->add_its_styled_items(ssi->getRoot());
+		new_model->add_its_styled_items(ssi.getRoot());
 		style_count++;
-		if (ssi->get_its_geometry()) {
-			stp_representation_item *repi = ssi->get_its_geometry();
-			if (!repi->isa(ROSE_DOMAIN(stp_manifold_solid_brep))) {
-				//std::cout <<"Warning: style found not applied to a manifold solid\n";
-				continue;
-			}
-			RoseReference *manifold = rose_make_ref(style_des, "master.stp#manifold_solid_brep");
-			stp_styled_item *style = ssi->getRoot();
-			rose_put_ref(manifold, style, "item");
-			// garbage collect
+		if (ssi.get_its_geometry()) {
+			stp_representation_item *repi = ssi.get_its_geometry();
+			std::string master_name("master.stp#");
+			master_name += repi->domain()->name();
+			RoseReference *entity_reference = rose_make_ref(style_des, master_name.c_str());
+			stp_styled_item *style = ssi.getRoot();
+			rose_put_ref(entity_reference, style, "item");
 			repi->move(rose_trash(), -1);
 		}
+
 	}
-
-
-//	if (style_count != 0)
-//		std::cout << "Added " << style_count << " styles to workpiece " << pieceid << '\n';
 
 	update_uri_forwarding(style_des);
-	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
-	{
-		style_des->addSchema(schemas.get(i));
-	}
+
+	stplib_put_schema(style_des, schemas);
 	ARMsave(style_des);
 
 
@@ -505,10 +482,7 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 	definition->entity_id(count);
 	count = count + 10;
 
-	for (auto i = 0u, sz = schemas.size(); i < sz; i++)
-	{
-		master_des->addSchema(schemas.get(i));
-	}
+	stplib_put_schema(master_des, schemas);
 	master_des->save();
 
 	return geo_des;
@@ -801,84 +775,6 @@ bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, boo
 	return false;
 }
 
-//bool find_approval_contents(ListOfRoseObject &exports, Approval * ap)
-//{
-//
-//	ListOfRoseObject tmp;
-//	unsigned i;
-//	unsigned j;
-//
-//	ap->getAIMObjects(&tmp);
-//	for (i = 0; i < tmp.size(); i++)
-//		exports.add(tmp[i]);
-//
-//	unsigned psize = ap->size_its_approving_person_organization();
-//	for (j = 0; j < psize; j++) {
-//		Approving_person_organization *peon =
-//			Approving_person_organization::find(ap->get_its_approving_person_organization(j)->getValue());
-//		if (peon) {
-//			peon->getAIMObjects(&tmp);
-//			for (i = 0; i < tmp.size(); i++)
-//				exports.add(tmp[i]);
-//		}
-//	}
-//
-//	unsigned dsize = ap->size_date_time();
-//	for (j = 0; j < dsize; j++) {
-//		Approval_date_time *daty = Approval_date_time::find(ap->get_date_time(j)->getValue());
-//		if (daty) {
-//			daty->getAIMObjects(&tmp);
-//			for (i = 0; i < tmp.size(); i++)
-//				exports.add(tmp[i]);
-//		}
-//	}
-//
-//	return true;
-//}
-//
-//bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa)
-//{
-//	ListOfRoseObject tmp;
-//	unsigned i;
-//	unsigned j;
-//
-//	sa->getAIMObjects(&tmp);
-//	for (i = 0; i < tmp.size(); i++)
-//		exports.add(tmp[i]);
-//
-//	Security_classification *sec = Security_classification::find(sa->get_classification());
-//
-//	if (sec) {
-//		sec->getAIMObjects(&tmp);
-//		for (i = 0; i < tmp.size(); i++)
-//			exports.add(tmp[i]);
-//		Approval *ap = Approval::find(sec->get_its_approval());
-//		if (ap) {
-//			find_approval_contents(exports, ap);
-//		}
-//		unsigned sizep = sec->size_person();
-//		for (j = 0; j < sizep; j++) {
-//			Assigned_person *peon = Assigned_person::find(sec->person[j]->getValue());
-//			if (peon) {
-//				peon->getAIMObjects(&tmp);
-//				for (i = 0; i < tmp.size(); i++)
-//					exports.add(tmp[i]);
-//			}
-//		}
-//		unsigned sizet = sec->size_time();
-//		for (j = 0; j < sizet; j++) {
-//			Assigned_time *teon = Assigned_time::find(sec->time[j]->getValue());
-//			if (teon) {
-//				teon->getAIMObjects(&tmp);
-//				for (i = 0; i < tmp.size(); i++)
-//					exports.add(tmp[i]);
-//			}
-//		}
-//
-//	}
-//
-//	return true;
-//}
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
@@ -890,7 +786,7 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 
 	std::string reference(dir);
 	if (reference.size() > 0)
-		reference = reference + "/";
+		reference += "/";
 	//	std::string reference(dir + "/");	//let's make the reference text. start with the output directory 
 	//	int slashpos = reference.find("/");
 	//	if (slashpos > 0 && slashpos < reference.size()){
@@ -903,7 +799,7 @@ RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesig
 	ref->resolved(obj);	//Reference is resolved to the object that we passed in, which is currently residing in the ProdOut design.
 	MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
 	URIManager = MyURIManager::make(obj);
-	//URIManager->should_go_in_des(obj->design());
+
 	URIManager->should_go_to_uri(ref);
 	return ref;
 }
