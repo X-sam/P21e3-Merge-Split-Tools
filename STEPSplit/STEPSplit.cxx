@@ -108,9 +108,9 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 	//Get all of the child workpieces into a vector.
 	unsigned sub_count = root->size_its_components();
 //	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
-	std::vector<Workpiece*> children, exported_children;
-	std::vector <RoseDesign *> subs;
-	std::vector <std::string> exported_name;
+	std::vector<Workpiece*> children, exported_children;	//Keep track of the children we move
+	std::vector <RoseDesign *> subs;						//Keep track of the designs we move children to
+	std::vector <std::string> exported_name;				//Keep track of the names of children.
 	for (unsigned i = 0; i < sub_count; i++) {
 		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(root->get_its_components(i)->getValue());
 		if (comp == NULL) continue;
@@ -201,7 +201,16 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		rose_move_to_design(pd,garbage);
 
 		comp->put_component(exported_child->getRoot());
-		addRefAndAnchor(exported_child->getRoot(), subs[i], master, dirname);
+		subs[i]->addName("product_definition",exported_child->getRoot());
+		std::string uri(subs[i]->name());
+		uri += "#product_definition";
+		RoseReference *Ref = rose_make_ref(master,uri.c_str());
+		Ref->resolved(exported_child->getRoot());
+		MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
+		URIManager = MyURIManager::make(exported_child->getRoot());
+		URIManager->should_go_to_uri(Ref);
+
+//		addRefAndAnchor(exported_child->getRoot(), subs[i], master, dirname);		//Should be "product_definition"
 
 		ListOfRoseObject tmp;
 		
@@ -216,7 +225,16 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 		stp_representation *rep = master_rep->rep_1();
 		master_rep->rep_1(exported_child->get_its_geometry());
-		addRefAndAnchor(exported_child->get_its_geometry(), subs[i], master, dirname);
+
+		subs[i]->addName("shape_representation", exported_child->get_its_geometry());
+		uri =subs[i]->name();
+		uri += "#shape_representation";
+		Ref = rose_make_ref(master, uri.c_str());
+		Ref->resolved(exported_child->get_its_geometry());
+		URIManager = MyURIManager::make(exported_child->get_its_geometry());
+		URIManager->should_go_to_uri(Ref);
+
+//		addRefAndAnchor(ROSE_CAST(stp_shape_representation,exported_child->get_its_geometry()), subs[i], master, dirname);	//Should be "shape_representation"
 		rep->move(garbage, -1);
 
 	}
@@ -369,8 +387,8 @@ RoseDesign *move_geometry(Workpiece * piece, const char * root_dir)
 	Workpiece * component_piece = find_root_workpiece(geo_des);
 
 	//TODO: Make a list of things that reference geometry and anchor them here.
-	geo_des->addName(component_piece->getRoot()->domain()->name(), component_piece->getRoot());
-	geo_des->addName(component_piece->get_its_geometry()->domain()->name(), component_piece->get_its_geometry());
+	geo_des->addName("product_definition", component_piece->getRoot());
+	geo_des->addName("shape_representation", component_piece->get_its_geometry());
 
 	RoseCursor objs;
 	objs.traverse(geo_des);
@@ -461,23 +479,23 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 	prefix+=pieceid;
 	prefix+=".stp";
 
-	std::string man_anchor(prefix);
-	man_anchor+="#manifold_solid_brep";
-	RoseReference *manifold = rose_make_ref(master_des, man_anchor.c_str());
+	std::string man_URI(prefix);
+	man_URI+="#manifold_solid_brep";
+	RoseReference *manifold = rose_make_ref(master_des, man_URI.c_str());
 	master_des->addName("manifold_solid_brep", manifold);
 	manifold->entity_id(count);
 	count = count + 10;
 
-	std::string shape_anchor(prefix);
-	shape_anchor +="#shape_representation";
-	RoseReference *shape_rep = rose_make_ref(master_des, shape_anchor.c_str());
+	std::string shape_URI(prefix);
+	shape_URI +="#shape_representation";
+	RoseReference *shape_rep = rose_make_ref(master_des, shape_URI.c_str());
 	master_des->addName("shape_representation", shape_rep);
 	shape_rep->entity_id(count);
 	count = count + 10;
 
-	std::string definition_anchor(prefix);
-	definition_anchor+="#product_definition";
-	RoseReference *definition = rose_make_ref(master_des, definition_anchor.c_str());
+	std::string definition_URI(prefix);
+	definition_URI+="#product_definition";
+	RoseReference *definition = rose_make_ref(master_des, definition_URI.c_str());
 	master_des->addName("product_definition", definition);
 	definition->entity_id(count);
 	count = count + 10;
@@ -652,33 +670,6 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 			}
 		}
 	}
-//=====Following code is replaced by the above three loops.	
-//	ARMCursor cur;
-//	cur.traverse(piece->getRootObject()->design());
-//	ARMObject * tmp2;
-//	while (NULL != (tmp2 = cur.next())) {
-//
-//		Single_datum_IF *datty = tmp2->castToSingle_datum_IF();
-//		if (datty) {
-//			if (datty->get_its_workpiece() == piece->getRoot()) {
-//				ListOfRoseObject amp2;
-//				datty->getAIMObjects(&amp2);
-//				for (i = 0; i < amp2.size(); i++)
-//					exports.add(amp2[i]);
-//				for (auto dat : ARM_RANGE(Datum_reference, piece->getRootObject()->design()))
-//				{
-//					if (dat.get_referenced_datum() == datty->getRootObject()) {
-//						ListOfRoseObject amp3;
-//						dat.getAIMObjects(&amp3);
-//						for (i = 0; i < amp3.size(); i++)
-//							exports.add(amp3[i]);
-//
-//					}
-//				}
-//			}
-//		}
-//	}
-//=====This ends the replaced code.
 
 	// assuming recursive descent OK and that other code will remove duplicates when subassembly repeated
 	unsigned count = piece->its_components.size();
