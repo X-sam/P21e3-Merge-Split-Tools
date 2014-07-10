@@ -58,9 +58,9 @@ int main(int argc, char* argv[])
 	ROSE.quiet(1);	//Suppress startup info.
 	stplib_init();	// initialize merged cad library
 	//    rose_p28_init();	// support xml read/write
-	FILE *out;
-	out = fopen("log.txt", "w");
-	ROSE.error_reporter()->error_file(out);
+//	FILE *out;
+//	out = fopen("log.txt", "w");
+//	ROSE.error_reporter()->error_file(out);
 	RoseP21Writer::max_spec_version(PART21_ED3);	//We need to use Part21 Edition 3 otherwise references won't be handled properly.
 
 	/* Create a RoseDesign to hold the output data*/
@@ -75,7 +75,6 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	RoseDesign * original = ROSE.useDesign(infilename.c_str());
-	stix_tag_units(original);
 	ARMpopulate(original);
 	schemas = stplib_get_schema(original);	//Load the schemas from original. They have to go in all of the child files.
 	Workpiece *root = find_root_workpiece(original);
@@ -154,7 +153,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		RoseDesign *sub_des = export_workpiece(child, outfilename.c_str(), false);
 		std::cout << "Writing child to file: " << outfilename << " (" << i+1 << "/" << children.size() << ")\n";
 
-		//	ARMsave (sub_des);
+			//ARMsave (sub_des);
 		Workpiece *exported_child = find_root_workpiece(sub_des);
 		subs.push_back(sub_des);
 		exported_children.push_back(exported_child);
@@ -235,10 +234,8 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		URIManager->should_go_to_uri(Ref);
 
 //		addRefAndAnchor(ROSE_CAST(stp_shape_representation,exported_child->get_its_geometry()), subs[i], master, dirname);	//Should be "shape_representation"
-		rep->move(garbage, -1);
-
+		rep->move(garbage, INT_MAX);
 	}
-
 	update_uri_forwarding(master);
 
 	stplib_put_schema(master, schemas);
