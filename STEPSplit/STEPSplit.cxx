@@ -75,6 +75,21 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 	RoseDesign * original = ROSE.useDesign(infilename.c_str());
+	// Do we need to swap the assembly relationships before beginning the split. This is terrifically slow.
+	stix_tag_units(original);
+	stix_tag_asms(original);
+
+	for (auto &possible_swap : ROSE_RANGE(stp_representation_relationship,original))
+	{
+		StixMgrAsmRelation * mgr = StixMgrAsmRelation::find(&possible_swap);
+		if (mgr && !mgr->reversed) std::cout << "NOT REVERSED\n";
+		if (mgr && mgr->reversed && mgr->child && mgr->owner) {
+			std::cout << "REVERSED\n";
+			stp_representation *tmp = possible_swap.rep_2();
+			possible_swap.rep_2(possible_swap.rep_1());
+			possible_swap.rep_1(tmp);
+		}
+	}
 	ARMpopulate(original);
 	schemas = stplib_get_schema(original);	//Load the schemas from original. They have to go in all of the child files.
 	Workpiece *root = find_root_workpiece(original);
