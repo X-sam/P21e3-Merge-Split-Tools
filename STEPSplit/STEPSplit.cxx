@@ -206,6 +206,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 	master->addName("product_definition", master_root->getRootObject());
 	master->addName("shape_representation", master_root->get_its_geometry());
 	master->addName("axis_placement", master_root->get_its_geometry()->items()->get(0));
+
 //	std::cout << "Writing master to file: " << outfilename << std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
@@ -255,13 +256,13 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 		stp_representation *rep = master_rep->rep_1();
 		master_rep->rep_1(exported_child->get_its_geometry());
+		auto a2p = exported_child->get_its_geometry()->items()->get(0);
 		if (master_rep->isa(ROSE_DOMAIN(stp_representation_relationship_with_transformation)))
 		{
 			auto rrwt = ROSE_CAST(stp_representation_relationship_with_transformation, master_rep);
 			auto idt = ROSE_CAST(stp_item_defined_transformation, rose_get_nested_object(rrwt->transformation_operator()));
 			if (nullptr != idt)
 			{
-				auto a2p = exported_child->get_its_geometry()->items()->get(0);
 				subs[i]->addName("axis_placement", a2p);
 				idt->transform_item_1(a2p);
 				uri = subs[i]->name();
@@ -282,6 +283,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 //		addRefAndAnchor(ROSE_CAST(stp_shape_representation,exported_child->get_its_geometry()), subs[i], master, dirname);	//Should be "shape_representation"
 		rep->move(garbage, INT_MAX);
+		a2p->move(master, INT_MAX);
 	}
 	update_uri_forwarding(master);
 
