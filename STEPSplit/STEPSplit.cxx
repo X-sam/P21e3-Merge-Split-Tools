@@ -515,7 +515,7 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 
 	int count = 10;
 	if (new_model) {
-		
+
 		RoseReference *styles = rose_make_ref(master_des, "pmi.stp#styles");
 		master_des->addName("styles", styles);
 		styles->entity_id(count);
@@ -525,18 +525,24 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 	// directory that contains all the geometry
 	std::string prefix("../");
 	for (unsigned i = 0; i < depth; i++)
-		prefix.append( "../");
-	prefix+="geometry_components/";
-	prefix+=pieceid;
-	prefix+=".stp";
+		prefix.append("../");
+	prefix += "geometry_components/";
+	prefix += pieceid;
+	prefix += ".stp";
 
+	RoseCursor objs;
+	objs.traverse(geo_des);
+	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
+	RoseObject *mani = objs.next();
+	if (mani != NULL)
+	{
 	std::string man_URI(prefix);
-	man_URI+="#manifold_solid_brep";
+	man_URI += "#manifold_solid_brep";
 	RoseReference *manifold = rose_make_ref(master_des, man_URI.c_str());
 	master_des->addName("manifold_solid_brep", manifold);
 	manifold->entity_id(count);
 	count = count + 10;
-
+	}
 	std::string shape_URI(prefix);
 	shape_URI +="#shape_representation";
 	RoseReference *shape_rep = rose_make_ref(master_des, shape_URI.c_str());
@@ -601,7 +607,7 @@ bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool 
 	piece->unset_its_datestamps();
 	piece->unset_revision_security_classification();
 	piece->unset_its_security_classification();
-
+	piece->unset_its_categories();
 
 	piece->getAIMObjects(&tmp);
 	for (auto i = 0u, sz = tmp.size(); i < sz; i++)
