@@ -82,12 +82,28 @@ int main(int argc, char* argv[])
 	for (auto &possible_swap : ROSE_RANGE(stp_representation_relationship,original))
 	{
 		StixMgrAsmRelation * mgr = StixMgrAsmRelation::find(&possible_swap);
-		if (mgr && !mgr->reversed) std::cout << "NOT REVERSED\n";
-		if (mgr && mgr->reversed && mgr->child && mgr->owner) {
-			std::cout << "REVERSED\n";
-			stp_representation *tmp = possible_swap.rep_2();
-			possible_swap.rep_2(possible_swap.rep_1());
-			possible_swap.rep_1(tmp);
+		if (!mgr)
+		{
+			//std::cout << "Representation relationship " << possible_swap.entity_id() << " is not part of an assembly\n";
+			continue;
+		}
+		if (!mgr->owner) mgr->reversed = !(mgr->reversed);	//LIES
+		if (!mgr->reversed) continue;
+		//std::cout << "REVERSED\n\tName: " <<possible_swap.name() <<"\n\tOwner: " << (mgr->owner ? mgr->owner->domain()->className() : 0) << "\n\tChild: " << (mgr->child ? mgr->child->domain()->name() : 0) <<'\n';
+		//possible_swap.display();
+		stp_representation *tmp = possible_swap.rep_2();
+		possible_swap.rep_2(possible_swap.rep_1());
+		possible_swap.rep_1(tmp);
+		if (possible_swap.isa(ROSE_DOMAIN(stp_representation_relationship_with_transformation)))
+		{
+			auto rrwt = ROSE_CAST(stp_representation_relationship_with_transformation, &possible_swap);
+			auto idt = ROSE_CAST(stp_item_defined_transformation, rose_get_nested_object(rrwt->transformation_operator()));
+			if (nullptr != idt)
+			{
+				auto tmp = idt->transform_item_1();
+				idt->transform_item_1(idt->transform_item_2());
+				idt->transform_item_2(tmp);
+			}
 		}
 	}
 	ARMpopulate(original);
