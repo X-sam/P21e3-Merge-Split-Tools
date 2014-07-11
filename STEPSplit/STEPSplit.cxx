@@ -283,7 +283,12 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 //		addRefAndAnchor(ROSE_CAST(stp_shape_representation,exported_child->get_its_geometry()), subs[i], master, dirname);	//Should be "shape_representation"
 		rep->move(garbage, INT_MAX);
-		a2p->move(master, INT_MAX);
+		
+		//The following code removes any geometry from the garbage.
+		auto master_geometry = master_root->get_its_geometry();
+		ListOfRoseObject children;
+		master_geometry->findObjects(&children, INT_MAX, true);
+		children.move(master,1);	//Move contents of list to master.
 	}
 	update_uri_forwarding(master);
 
