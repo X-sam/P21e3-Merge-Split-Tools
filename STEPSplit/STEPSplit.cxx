@@ -205,7 +205,7 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 	master->addName("product_definition", master_root->getRootObject());
 	master->addName("shape_representation", master_root->get_its_geometry());
-
+	master->addName("axis_placement", master_root->get_its_geometry()->items()->get(0));
 //	std::cout << "Writing master to file: " << outfilename << std::endl;
 
 	// Change the workpiece of each top level component to the root of a new design
@@ -255,7 +255,23 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 
 		stp_representation *rep = master_rep->rep_1();
 		master_rep->rep_1(exported_child->get_its_geometry());
-
+		if (master_rep->isa(ROSE_DOMAIN(stp_representation_relationship_with_transformation)))
+		{
+			auto rrwt = ROSE_CAST(stp_representation_relationship_with_transformation, master_rep);
+			auto idt = ROSE_CAST(stp_item_defined_transformation, rose_get_nested_object(rrwt->transformation_operator()));
+			if (nullptr != idt)
+			{
+				auto a2p = exported_child->get_its_geometry()->items()->get(0);
+				subs[i]->addName("axis_placement", a2p);
+				idt->transform_item_1(a2p);
+				uri = subs[i]->name();
+				uri+="#axis_placement";
+				Ref = rose_make_ref(master, uri.c_str());
+				Ref->resolved(a2p);
+				URIManager = MyURIManager::make(a2p);
+				URIManager->should_go_to_uri(Ref);
+			}
+		}
 		subs[i]->addName("shape_representation", exported_child->get_its_geometry());
 		uri =subs[i]->name();
 		uri += "#shape_representation";
@@ -417,7 +433,7 @@ RoseDesign *move_geometry(Workpiece * piece, const char * root_dir)
 	//TODO: Make a list of things that reference geometry and anchor them here.
 	geo_des->addName("product_definition", component_piece->getRoot());
 	geo_des->addName("shape_representation", component_piece->get_its_geometry());
-
+	geo_des->addName("axis_placement", component_piece->get_its_geometry()->items()->get(0));
 	RoseCursor objs;
 	objs.traverse(geo_des);
 	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
@@ -527,6 +543,14 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 	master_des->addName("product_definition", definition);
 	definition->entity_id(count);
 	count = count + 10;
+
+	std::string axis_URI(prefix);
+	axis_URI += "#axis_placement";
+	RoseReference *axis = rose_make_ref(master_des, axis_URI.c_str());
+	master_des->addName("axis_placement", axis);
+	axis->entity_id(count);
+	count = count + 10;
+
 
 	stplib_put_schema(master_des, schemas);
 	master_des->save();
