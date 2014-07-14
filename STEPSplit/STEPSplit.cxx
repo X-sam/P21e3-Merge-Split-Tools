@@ -27,6 +27,7 @@
 #include "scan.h"
 #include "ARMRange.h"
 #include "ROSERange.h"
+#include "DesignAndName.h"
 #pragma comment(lib,"stpcad_stix.lib")
 #pragma comment(lib,"stpcad.lib")
 #pragma comment(lib,"stpcad_arm.lib")
@@ -36,6 +37,7 @@ StplibSchemaType schemas;	//Used so that all split output has the same schema as
 
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 std::string SafeName(std::string name);
+
 
 // Routines written by MH & adapted by Samson
 int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_dir, unsigned depth = 0);
@@ -288,7 +290,8 @@ int mBomSplit(Workpiece *root, bool repeat, std::string path, const char * root_
 		auto master_geometry = master_root->get_its_geometry();
 		ListOfRoseObject children;
 		master_geometry->findObjects(&children, INT_MAX, true);
-		children.move(master,1);	//Move contents of list to master.
+		for (auto i = 0u, sz = children.size(); i < sz;i++)
+			children[i]->move(master);	//Move contents of list to master.
 	}
 	update_uri_forwarding(master);
 
@@ -412,10 +415,13 @@ RoseDesign *move_geometry(Workpiece * piece, const char * root_dir)
 	geometry += "/geometry_components/";
 	geometry += pieceid;
 	geometry += ".stp";
-	if (rose_file_exists(geometry.c_str()))
-	{
-		return nullptr;
-	}
+//	if (rose_file_exists(geometry.c_str()))
+//	{
+//		auto a = ROSE.findDesignInWorkspace(geometry.c_str());
+//		if (nullptr == a) a = ROSE.findDesign(geometry.c_str());
+//		return a;
+//		return nullptr;
+//	}
 	ListOfRoseObject geo_exports;
 	find_workpiece_contents(geo_exports, piece, false);
 
@@ -534,14 +540,14 @@ RoseDesign *split_pmi(Workpiece * piece, const char * stp_file_name, unsigned de
 	objs.traverse(geo_des);
 	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
 	RoseObject *mani = objs.next();
-	if (mani != NULL)
+	if (nullptr!=mani)
 	{
-	std::string man_URI(prefix);
-	man_URI += "#manifold_solid_brep";
-	RoseReference *manifold = rose_make_ref(master_des, man_URI.c_str());
-	master_des->addName("manifold_solid_brep", manifold);
-	manifold->entity_id(count);
-	count = count + 10;
+		std::string man_URI(prefix);
+		man_URI += "#manifold_solid_brep";
+		RoseReference *manifold = rose_make_ref(master_des, man_URI.c_str());
+		master_des->addName("manifold_solid_brep", manifold);
+		manifold->entity_id(count);
+		count = count + 10;
 	}
 	std::string shape_URI(prefix);
 	shape_URI +="#shape_representation";
