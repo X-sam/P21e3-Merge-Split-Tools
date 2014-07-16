@@ -11,13 +11,21 @@ int DesignNumber = 0;
 std::map<std::string, std::vector<int>> nametodesign;
 class DesignAndName
 {
-	RoseDesign * design;
-	std::string name;
+	RoseDesign * design =nullptr;
+	std::string name ="";
 public:
-	DesignAndName() { design = nullptr; name = "";};
-	DesignAndName(std::string inname, std::string path) { Find(inname, path); };
-	DesignAndName * Find(std::string inname, std::string path) //Given a name and a path, finds the design in memory with the matching info- if any. If none, it makes a new one.
+	DesignAndName() {};
+	DesignAndName(const std::string &path,const std::string &inname) 
+	{ 
+		Find(path,inname);
+		if (design == nullptr)
+		{
+			NewDesign(path, inname);
+		}
+	};
+	DesignAndName * Find(const std::string &inpath,const std::string &inname) //Given a name and a path, finds the design in memory with the matching info- if any.
 	{
+		auto path = SlashRegulize(inpath);
 		RoseDesign * des;
 		for (auto i : nametodesign[inname])
 		{
@@ -31,21 +39,33 @@ public:
 				return this;
 			}
 		}
-		//If we are here, the desired design was not in workspace. Open it and return the new design.
-		char last = path.back();
-		if (last != '/'&&last != '\\')
-			path.push_back('\\');
-		des = ROSE.findDesign((path + inname).c_str());
-		if (nullptr == des)
-		{
-			des = ROSE.newDesign((path + inname).c_str());
-		}
-		des->name(std::to_string(DesignNumber++).c_str());	//Give the design a unique number.
-		nametodesign[inname].push_back(DesignNumber);			//Add the newly made design to the list of designs with this name
-		design = des;
-//		if (inname.find_last_of('.')) name = inname.substr(0, inname.find_last_of('.'));
-		name = inname;
 		return this;
+	}
+	DesignAndName Open(const std::string &inpath, const std::string &inname)
+	{
+		auto path = SlashRegulize(inpath);
+		RoseDesign *des;
+
+		des = ROSE.findDesign((path + inname).c_str());
+		if (des != nullptr)
+		{
+			name = inname;
+			design = des;
+			design->name(std::to_string(DesignNumber).c_str());
+			nametodesign[inname].push_back(DesignNumber++);
+		}
+		return *this;
+	}
+	DesignAndName NewDesign(std::string inpath,std::string inname)
+	{
+		auto path = SlashRegulize(inpath);
+		auto des = ROSE.newDesign((path + inname).c_str());
+		des->name(std::to_string(DesignNumber).c_str());	//Give the design a unique number.
+		nametodesign[inname].push_back(DesignNumber++);			//Add the newly made design to the list of designs with this name
+		design = des;
+		//		if (inname.find_last_of('.')) name = inname.substr(0, inname.find_last_of('.'));
+		name = inname;
+		return *this;
 	}
 	RoseDesign* GetDesign() { return design; };
 	std::string GetName() { return name; };
@@ -58,5 +78,17 @@ public:
 			design->name(name.c_str());
 		ARMsave(design);
 		design->name(tmp);
+	}
+private:
+	std::string SlashRegulize(const std::string str)
+	{
+		std::string tmp(str);
+		for (auto &i : tmp)
+		{
+			if (i == '/') i = '\\';
+		}
+		if (tmp.back()!= '\\')
+			tmp.push_back('\\');
+		return tmp;
 	}
 };
