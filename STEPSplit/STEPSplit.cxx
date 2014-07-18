@@ -451,6 +451,7 @@ DesignAndName move_geometry(Workpiece * piece, std::string root_dir)
 	Workpiece * component_piece = find_root_workpiece(geo_des.GetDesign());
 
 	//TODO: Make a list of things that reference geometry and anchor them here.
+	
 	geo_des.GetDesign()->addName("product_definition", component_piece->getRoot());
 	geo_des.GetDesign()->addName("shape_representation", component_piece->get_its_geometry());
 	geo_des.GetDesign()->addName("axis_placement", component_piece->get_its_geometry()->items()->get(0));
@@ -460,7 +461,7 @@ DesignAndName move_geometry(Workpiece * piece, std::string root_dir)
 	RoseObject *mani = objs.next();
 	if (mani != NULL)
 		geo_des.GetDesign()->addName("manifold_solid_brep", mani);
-
+	
 	stplib_put_schema(geo_des.GetDesign(), schemas);
 	
 	geo_des.Save();
@@ -474,7 +475,6 @@ DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned d
 
 	rose_mkdir(stp_file_name.c_str());
 
-	DesignAndName geo_des = move_geometry(piece, root_dir);
 	std::string pieceid(piece->get_its_id());
 
 	ListOfRoseObject style_exports;
@@ -487,7 +487,7 @@ DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned d
 	DesignAndName style_des;
 	style_des.NewDesign(stp_file_name, "pmi.stp");
 	ListOfRoseObject * style_list;
-	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des.GetDesign(), INT_MAX)); // enough for selects and lists (10 was to few)
+	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des.GetDesign(), INT_MAX));
 
 	//std::cout << "Number of copied objects in style file " << stp_file_name << "_pmi.stp is " << style_list->size() << '\n';
 	delete style_list;  /* Don't want the list itself in the new design */
@@ -522,6 +522,7 @@ DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned d
 	stplib_put_schema(style_des.GetDesign(), schemas);
 	style_des.Save();
 
+	DesignAndName geo_des = move_geometry(piece, root_dir);
 
 	std::string master_file(stp_file_name);
 	master_file += "/master.stp";
