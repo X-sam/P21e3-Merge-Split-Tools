@@ -51,6 +51,10 @@ bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, boo
 DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned depth, std::string root_dir);
 
 int FixRelations(RoseDesign * des);
+int MarkForSplit(Workpiece *root, const std::string &root_dir, unsigned depth = 0u);
+int MarkAsmMaster(Workpiece *master, const std::string mastername, const std::string masterdir);
+int MarkLeaf(Workpiece *leaf, const std::string &leafdir);
+std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece *> &Children);
 
 int main(int argc, char* argv[])
 {
@@ -91,7 +95,8 @@ int main(int argc, char* argv[])
 	// root directroy for all the files
 	std::string outfile_directory(root->get_its_id());
 
-	return mBomSplit(root, true, outfile_directory, outfile_directory);
+	MarkForSplit(root, outfile_directory);
+	//return mBomSplit(root, true, outfile_directory, outfile_directory);
 
 }
 
@@ -130,6 +135,80 @@ int FixRelations(RoseDesign * des) {
 		count++;
 	}
 	return count;
+}
+
+
+//Every workpiece needs its own file. Here we attach a manager to every rose object saying which file that is.
+int MarkForSplit(Workpiece *root,const std::string &root_dir,unsigned depth)
+{
+	std::vector<Workpiece *> children;
+	std::vector<std::string> childnames = NameChildren(root, children);	//After this we'll have all the immediate children in a vector and what we should name them in another vector.
+
+	
+	//Make Root Decisions here
+	MarkAsmMaster(root, "master", root_dir);
+
+	unsigned offset = 0u;
+	for (auto &child : children)
+	{
+		std::string childdir = (root_dir + "\\" + childnames[offset]);
+		if (child->size_its_components() > 0)
+			MarkForSplit(child, childdir, depth + 1);
+		else
+			MarkLeaf(child,childdir);
+		offset++;
+	}
+	return EXIT_SUCCESS;
+}
+int MarkLeaf(Workpiece *leaf, const std::string &leafdir)
+{
+	std::cout << leafdir <<"\\" << leaf->get_its_id() <<".stp I am leaf.\n";
+	return 0;
+}
+int MarkAsmMaster(Workpiece *master, const std::string mastername, const std::string masterdir)
+{
+	std::cout << masterdir << "\\" << mastername <<".stp I am Asm Master.\n";
+	return 0;
+}
+//Given a workpiece and an empty vector, fills the vector with the child workpieces and returns a vector of unique names for them
+std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece *> &Children)
+{
+	for (auto i = 0u, sz = Parent->its_components.size(); i < sz; i++)
+	{
+		auto childWAC = Workpiece_assembly_component::find(Parent->get_its_components(i)->getValue());
+		auto child = Workpiece::find(childWAC->get_component());
+		Children.push_back(child);
+	}
+	std::vector<std::string> childnames;
+	for (unsigned i = 0u,sz = Children.size(); i < sz; i++)
+	{
+		Workpiece *child = Children[i];
+		bool need_nuao = false;
+		for (auto j = 0u; j < sz; j++) {
+			if (j == i) continue;
+			if (Children[j] == Children[i]) {
+				need_nuao = true;				//There are two instances of one workpiece in the list. This means we should name them based on their NAUO.
+				break;
+			}
+		}
+		std::string outfilename;
+		if (need_nuao) {
+			stp_next_assembly_usage_occurrence *nauo = Parent->get_its_components(i)->getValue();
+			std::string fname(nauo->id());
+			fname = SafeName(fname);
+			outfilename += fname + '-';
+			fname = SafeName(nauo->name());
+			outfilename += fname;
+		}
+		else
+		{
+			std::string fname(child->get_its_id());
+			fname = SafeName(fname);
+			outfilename += fname;
+		}
+		childnames.push_back(outfilename);
+	}
+	return childnames;
 }
 
 int mBomSplit(Workpiece *root, bool repeat, std::string path, std::string root_dir, unsigned depth)

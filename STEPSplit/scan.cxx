@@ -139,3 +139,21 @@ MyURIManager * MyURIManager::make(RoseObject * obj)
 	}
 	return mgr;
 }
+
+
+ROSE_IMPLEMENT_MANAGER_COMMON(MoveManager);
+
+MoveManager * MoveManager::find(RoseObject * obj)
+{
+	return (MoveManager*)(obj ? obj->find_manager(type()) : 0);
+}
+
+MoveManager * MoveManager::make(RoseObject * obj)
+{
+	MoveManager* mgr = MoveManager::find(obj);
+	if (!mgr) {
+		mgr = new MoveManager;
+		obj->add_manager(mgr);
+	}
+	return mgr;
+}
