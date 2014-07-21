@@ -38,6 +38,13 @@ StplibSchemaType schemas;	//Used so that all split output has the same schema as
 RoseReference* addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 std::string SafeName(std::string name);
 
+typedef struct vertex
+{
+	Workpiece * node;
+	bool visited = false;
+	std::string name="";
+	std::string dir = "";
+} vertex;
 
 // Routines written by MH & adapted by Samson
 int mBomSplit(Workpiece *root, bool repeat, std::string path, std::string root_dir, unsigned depth = 0);
@@ -51,11 +58,12 @@ bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, boo
 DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned depth, std::string root_dir);
 
 int FixRelations(RoseDesign * des);
-int MarkForSplit(Workpiece *root, const std::string &root_dir, unsigned depth = 0u);
-int MarkAsmMaster(Workpiece *master, const std::string mastername, const std::string masterdir);
-int MarkLeaf(Workpiece *leaf, const std::string &leafdir);
+int MarkForSplit(vertex &root);
+int MarkAsmMaster(vertex &master);
+int MarkLeaf(vertex &leaf);
 std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece *> &Children);
-
+void NameChildren(Workpiece *Parent, std::vector<vertex> &children);
+int Split(RoseDesign *des);
 int main(int argc, char* argv[])
 {
 	if (argc < 2){
@@ -92,10 +100,14 @@ int main(int argc, char* argv[])
 		std::cerr << "No Workpiece found in input" << std::endl;
 		return EXIT_FAILURE;
 	}
-	// root directroy for all the files
-	std::string outfile_directory(root->get_its_id());
 
-	MarkForSplit(root, outfile_directory);
+	vertex v;
+	v.node = root;
+	v.name = v.node->get_its_id();
+	v.dir = v.name;
+
+	MarkForSplit(v);
+	Split(original);
 	//return mBomSplit(root, true, outfile_directory, outfile_directory);
 
 }
@@ -139,60 +151,70 @@ int FixRelations(RoseDesign * des) {
 
 
 //Every workpiece needs its own file. Here we attach a manager to every rose object saying which file that is.
-int MarkForSplit(Workpiece *root,const std::string &root_dir,unsigned depth)
+
+int MarkForSplit(vertex &root)
 {
-	std::vector<Workpiece *> children;
-	std::vector<std::string> childnames = NameChildren(root, children);	//After this we'll have all the immediate children in a vector and what we should name them in another vector.
-
-	
-	//Make Root Decisions here
-	MarkAsmMaster(root, "master", root_dir);
-
-	unsigned offset = 0u;
-	for (auto &child : children)
+	std::vector<vertex> stack;
+	stack.push_back(root);
+	vertex v;
+	while (!stack.empty())
 	{
-		std::string childdir = (root_dir + "\\" + childnames[offset]);
-		if (child->size_its_components() > 0)
-			MarkForSplit(child, childdir, depth + 1);
-		else
-			MarkLeaf(child,childdir);
-		offset++;
+		v = stack.back();
+		stack.pop_back();
+		if (false == v.visited)
+		{
+			v.visited = true;
+			std::vector<vertex> children;
+			for (auto i = 0u, sz = v.node->size_its_components(); i < sz; i++)
+			{
+				Workpiece_assembly_component * wac = Workpiece_assembly_component::find(v.node->get_its_components(i)->getValue());
+				Workpiece *w = Workpiece::find(wac->get_component());
+				vertex x;
+				x.node = w;
+				children.push_back(x);
+			}
+			NameChildren(v.node,children);
+			for (auto x : children)
+			{
+				x.dir = v.dir;
+				x.dir += '\\'+x.name;
+				stack.push_back(x);
+			}
+			if (0 == children.size())
+				MarkLeaf(v);
+			else
+				MarkAsmMaster(v);
+		}
 	}
 	return EXIT_SUCCESS;
 }
-int MarkLeaf(Workpiece *leaf, const std::string &leafdir)
+int MarkLeaf(vertex &leaf)
 {
-	std::cout << leafdir <<"\\" << leaf->get_its_id() <<".stp I am leaf.\n";
+	std::cout << leaf.dir <<"\\" << leaf.name <<".stp I am leaf.\n";
 	return 0;
 }
-int MarkAsmMaster(Workpiece *master, const std::string mastername, const std::string masterdir)
+int MarkAsmMaster(vertex &master)
 {
-	std::cout << masterdir << "\\" << mastername <<".stp I am Asm Master.\n";
+	std::cout << master.dir << "\\" << master.name <<".stp I am Asm Master.\n";
 	return 0;
 }
-//Given a workpiece and an empty vector, fills the vector with the child workpieces and returns a vector of unique names for them
-std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece *> &Children)
+//Given a workpiece and a list of its children, sets the vertex names, ensuring they are unique.
+void NameChildren(Workpiece *Parent, std::vector<vertex> &children)
 {
-	for (auto i = 0u, sz = Parent->its_components.size(); i < sz; i++)
+	for (unsigned i = 0u, sz = children.size(); i < sz; i++)
 	{
-		auto childWAC = Workpiece_assembly_component::find(Parent->get_its_components(i)->getValue());
-		auto child = Workpiece::find(childWAC->get_component());
-		Children.push_back(child);
-	}
-	std::vector<std::string> childnames;
-	for (unsigned i = 0u,sz = Children.size(); i < sz; i++)
-	{
-		Workpiece *child = Children[i];
-		bool need_nuao = false;
-		for (auto j = 0u; j < sz; j++) {
-			if (j == i) continue;
-			if (Children[j] == Children[i]) {
-				need_nuao = true;				//There are two instances of one workpiece in the list. This means we should name them based on their NAUO.
+		bool need_nauo = false;
+		for (auto j = 0u; j < sz; j++)
+		{
+			if (i == j) continue;
+			if (children[i].node == children[j].node)
+			{
+				need_nauo = true;
 				break;
 			}
 		}
 		std::string outfilename;
-		if (need_nuao) {
+		if (need_nauo) {
 			stp_next_assembly_usage_occurrence *nauo = Parent->get_its_components(i)->getValue();
 			std::string fname(nauo->id());
 			fname = SafeName(fname);
@@ -202,14 +224,14 @@ std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece 
 		}
 		else
 		{
-			std::string fname(child->get_its_id());
+			std::string fname(children[i].node->get_its_id());
 			fname = SafeName(fname);
 			outfilename += fname;
 		}
-		childnames.push_back(outfilename);
+		children[i].name = outfilename;
 	}
-	return childnames;
 }
+
 
 int mBomSplit(Workpiece *root, bool repeat, std::string path, std::string root_dir, unsigned depth)
 {

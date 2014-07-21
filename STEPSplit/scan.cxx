@@ -125,35 +125,39 @@ void update_uri_forwarding(RoseDesign * design)
 
 ROSE_IMPLEMENT_MANAGER_COMMON(MyURIManager);
 
-MyURIManager * MyURIManager::find(RoseObject * obj)
-{
-	return (MyURIManager*)(obj ? obj->find_manager(type()) : 0);
-}
-
-MyURIManager * MyURIManager::make(RoseObject * obj)
-{
-	MyURIManager* mgr = MyURIManager::find(obj);
-	if (!mgr) {
-		mgr = new MyURIManager;
-		obj->add_manager(mgr);
-	}
-	return mgr;
-}
+//MyURIManager * MyURIManager::find(RoseObject * obj)
+//{
+//	return (MyURIManager*)(obj ? obj->find_manager(type()) : 0);
+//}
+//
+//MyURIManager * MyURIManager::make(RoseObject * obj)
+//{
+//	MyURIManager* mgr = MyURIManager::find(obj);
+//	if (!mgr) {
+//		mgr = new MyURIManager;
+//		obj->add_manager(mgr);
+//	}
+//	return mgr;
+//}
 
 
 ROSE_IMPLEMENT_MANAGER_COMMON(MoveManager);
 
-MoveManager * MoveManager::find(RoseObject * obj)
-{
-	return (MoveManager*)(obj ? obj->find_manager(type()) : 0);
-}
+//MoveManager * MoveManager::find(RoseObject * obj)
+//{
+//	return (MoveManager*)(obj ? obj->find_manager(type()) : 0);
+//}
+//
+//MoveManager * MoveManager::make(RoseObject * obj)
+//{
+//	MoveManager* mgr = MoveManager::find(obj);
+//	if (!mgr) {
+//		mgr = new MoveManager;
+//		obj->add_manager(mgr);
+//	}
+//	return mgr;
+//}
 
-MoveManager * MoveManager::make(RoseObject * obj)
-{
-	MoveManager* mgr = MoveManager::find(obj);
-	if (!mgr) {
-		mgr = new MoveManager;
-		obj->add_manager(mgr);
-	}
-	return mgr;
-}
+ROSE_IMPLEMENT_MANAGER_COMMON(CopyManager);
+
+ROSE_IMPLEMENT_MANAGER_COMMON(ReferenceManager);
