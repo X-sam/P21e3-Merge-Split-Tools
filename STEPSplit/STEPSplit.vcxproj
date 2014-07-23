@@ -21,14 +21,14 @@
   <ItemGroup>
     <ClCompile Include="SplitCopy.cpp" />
     <ClCompile Include="STEPSplit.cxx" />
-    <ClCompile Include="scan.cxx" />
+    <ClCompile Include="custommanagers.cxx" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ARMRange.h" />
     <ClInclude Include="classmappy.h" />
     <ClInclude Include="DesignAndName.h" />
     <ClInclude Include="ROSERange.h" />
-    <ClInclude Include="scan.h" />
+    <ClInclude Include="custommanagers.h" />
     <ClInclude Include="SplitCopy.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

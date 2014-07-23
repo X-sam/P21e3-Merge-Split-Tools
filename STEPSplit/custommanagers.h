@@ -2,8 +2,7 @@
 //Declares a URIManager class, which is attached to objects when we move them so we know what reference they should point to.
 //Adapted from code by Dave Loffredo
 
-#ifndef _scan_h_
-#define _scan_h_
+#pragma once
 #include <rose.h>
 #include <rose_p28.h>
 #include <stp_schema.h>
@@ -11,25 +10,30 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
 
+//Every manager has the same find and make methods, just getting and returning their own specific type. 
+//Here we make a common parent class with templating so we can inherit from it in each of our managers, instead of writing a new find/make method for each one.
 template <typename T>
-T* find(RoseObject * obj)
+class FindMake
 {
-	return (T*)(obj ? obj->find_manager(type()) : 0);
-}
-
-template <typename T>
-T * make(RoseObject * obj)
-{
-	T* mgr = T::find(obj);
-	if (!mgr) {
-		mgr = new T;
-		obj->add_manager(mgr);
+public:
+	static T* find(RoseObject * obj)
+	{
+		return (T*)(obj ? obj->find_manager(T::type()) : 0);
 	}
-	return mgr;
-}
 
-class MyURIManager : public RoseManager {
+	static T * make(RoseObject * obj)
+	{
+		T* mgr = find(obj);
+		if (!mgr) {
+			mgr = new T;
+			obj->add_manager(mgr);
+		}
+		return mgr;
+	}
+};
+class MyURIManager : public RoseManager,public FindMake<MyURIManager> {
 protected:
 	RoseReference * 	f_ref;
 	RoseReference *		real_ref;
@@ -45,35 +49,31 @@ public:
 	RoseReference * should_point_to()				{ return real_ref; }
 	void should_point_to(RoseReference * d)			{ real_ref = d; }
 
-	static MyURIManager * find(RoseObject *);
-	static MyURIManager * make(RoseObject *);
+	//static MyURIManager * find<MyURIManager>;
+	//static MyURIManager * make<MyURIManager>;
 };
 
 void update_uri_forwarding(RoseDesign * design);
 
 
-//MoveManager holds a list of the names of files where we want an object to go, as well as a marker to indicate whether an item is referenced by something outside of this file.
-class MoveManager : public RoseManager {
+//MoveManager holds a list of the names of files where we want an object to go.
+class MoveManager : public RoseManager, public FindMake<MoveManager> {
 protected:
-	std::vector<std::string> outfiles;
-	bool isreferenced=false;
+	std::set<std::string> outfiles;
 public:
 
 	ROSE_DECLARE_MANAGER_COMMON();
 
-	void addfile(std::string file) { outfiles.push_back(file); };
-	std::vector<std::string> getfiles() { return outfiles; };
+	void addfile(std::string file) { outfiles.insert(file); };
+	std::set<std::string> getfiles() { return outfiles; };
 
-	void setreferenced() { isreferenced = true; };
-	bool getreferenced() { return isreferenced; };
-
-	static MoveManager * find(RoseObject *);
-	static MoveManager * make(RoseObject *);
+	//static MoveManager * find<MoveManager>;
+	//static MoveManager * make<MoveManager>;
 };
 
 //ReferenceManager is used by copier function to track which objects reference this object.
 //When copier copies an object, it checks this manager for any objects in the new design which reference the copied object, and resolves their references accordingly.
-class ReferenceManager : public RoseManager
+class ReferenceManager : public RoseManager, public FindMake<ReferenceManager>
 {
 protected:
 	std::map<RoseDesign *, std::vector<RoseObject *>> references;
@@ -84,13 +84,13 @@ public:
 	std::vector<RoseObject *> getreferences(RoseDesign *des) { return references[des]; };
 	void addreference(RoseDesign *des, RoseObject * referencer) { references[des].push_back(referencer); };
 
-	static ReferenceManager * find(RoseObject *);
-	static ReferenceManager * make(RoseObject *);
+	//static ReferenceManager * find<ReferenceManager>;
+	//static ReferenceManager * make<ReferenceManager>;
 };
 
 //CopyManager contains a map, keyed by a rosedesign, which contains all the RoseObjects which are copies of the object this is attached to.
 //If the object this is attached to is a copy, it contains a pointer to the object which it was copied from. It doesn't care if that item is itself a copy, so user should check for that.
-class CopyManager : public RoseManager
+class CopyManager : public RoseManager, public FindMake<CopyManager>
 {
 protected:
 	std::map<RoseDesign *, RoseObject *> copies;	//empty if this is a copy. If the value at an index is null, then there is no copy of this item in that design.
@@ -99,11 +99,9 @@ public:
 	
 	ROSE_DECLARE_MANAGER_COMMON();
 
+	RoseObject * GetCopy(RoseDesign* in) { return copies[in]; };
+	void AddCopy(RoseDesign *in, RoseObject * copy) { copies[in] = copy; };
 	//static CopyManager * find(RoseObject *);
-	static CopyManager * find(RoseObject *);
-	static CopyManager * make(RoseObject *);// *make(RoseObject *);
-
+	//static CopyManager * find<CopyManager>;
+	//static CopyManager * make<CopyManager>;
 };
-
-
-#endif
