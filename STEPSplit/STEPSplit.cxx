@@ -24,7 +24,7 @@
 #include <iostream>
 #include <cstdio>
 
-#include "scan.h"
+#include "custommanagers.h"
 #include "ARMRange.h"
 #include "ROSERange.h"
 #include "DesignAndName.h"
@@ -61,6 +61,7 @@ int FixRelations(RoseDesign * des);
 int MarkForSplit(vertex &root);
 int MarkAsmMaster(vertex &master);
 int MarkLeaf(vertex &leaf);
+int MarkGeometry(vertex &leaf);
 std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece *> &Children);
 void NameChildren(Workpiece *Parent, std::vector<vertex> &children);
 int Split(RoseDesign *des);
@@ -186,22 +187,44 @@ int MarkForSplit(vertex &root)
 				MarkAsmMaster(v);
 		}
 	}
+	
 	return EXIT_SUCCESS;
 }
-int MarkLeaf(vertex &leaf)
-{
-	std::cout << leaf.dir <<"\\" << leaf.name <<".stp I am leaf.\n";
-	return 0;
-}
+
 int MarkAsmMaster(vertex &master)
 {
 	std::cout << master.dir << "\\" << master.name <<".stp I am Asm Master.\n";
 	return 0;
 }
+int MarkLeaf(vertex &leaf)
+{
+	MarkGeometry(leaf);
+	std::cout << leaf.dir <<"\\" << leaf.name <<".stp I am leaf.\n";
+	return 0;
+}
+int MarkGeometry(vertex &leaf)	//We only mark geometry on leaves, as far as I can tell those are the only assemblies that should have geometry!
+{
+	std::string geometrydir("geometry_components/");
+	geometrydir += leaf.node->get_its_id();
+	ListOfRoseObject geo_exports;
+	find_workpiece_contents(geo_exports, leaf.node, false);
+	ARMresolveReferences(&geo_exports);
+	for (auto i = 0u, sz = geo_exports.size(); i < sz; i++)
+	{
+		auto obj=geo_exports.get(i);
+		auto mgr = MoveManager::make(obj);
+		if (!mgr)
+		{
+			std::cerr << "Error Making Manager. Object EID: " << obj->entity_id() << '\n';
+			return EXIT_FAILURE;
+		}
+		mgr->addfile(geometrydir);	//The manager transparently handles uniqueness of filenames, if we've already said this goes in "NUT.stp" it doesn't matter- we won't have any duplication.
+	}
+}
 //Given a workpiece and a list of its children, sets the vertex names, ensuring they are unique.
 void NameChildren(Workpiece *Parent, std::vector<vertex> &children)
 {
-	for (unsigned i = 0u, sz = children.size(); i < sz; i++)
+	for (unsigned i = 0u, sz = (unsigned)children.size(); i < sz; i++)
 	{
 		bool need_nauo = false;
 		for (auto j = 0u; j < sz; j++)
@@ -233,199 +256,199 @@ void NameChildren(Workpiece *Parent, std::vector<vertex> &children)
 }
 
 
-int mBomSplit(Workpiece *root, bool repeat, std::string path, std::string root_dir, unsigned depth)
-{
-	//if (path.empty()) path =".\\";
-	if(!path.empty())
-		if (path.back() != '/' && path.back() != '\\') path.push_back('\\');
-	
-	//	std::cout << "\n\nMaking directory " << path << "\n";
-	rose_mkdir(path.c_str());
-	//Make a locally-scoped design to put all our trash in. we will move it to the trash when we are done.
-	RoseDesign *garbage = new RoseDesign;
-
-	// make directory for all the geometry components
-	if (depth == 0) 
-	{
-		std::string components = root_dir + "/geometry_components";
-		rose_mkdir(components.c_str());
-	}
-
-	//Get all of the child workpieces into a vector.
-	unsigned sub_count = root->size_its_components();
-	//	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
-	std::vector<Workpiece*> children, exported_children;	//Keep track of the children we move
-	std::vector <DesignAndName> subs;						//Keep track of the designs we move children to
-	std::vector <std::string> exported_name;				//Keep track of the names of children.
-	for (unsigned i = 0; i < sub_count; i++) 
-	{
-		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(root->get_its_components(i)->getValue());
-		if (comp == NULL) continue;
-		Workpiece * child = Workpiece::find(comp->get_component());
-		if (child == NULL) continue;
-		children.push_back(child);
-	}
-	//For each child, find out if it needs an NAUO attached. Attach one if necessary.
-	for (unsigned i = 0u, sz = children.size(); i < sz; i++) 
-	{
-		Workpiece *child = children[i];
-		bool need_nuao = false;
-		for (auto j = 0u; j < sz; j++) {
-			if (j == i) continue;
-			if (children[j] == children[i]) {
-				need_nuao = true;
-				break;
-			}
-		}
-		std::string outfilename;
-//		if (path.size() > 0)
-//			outfilename = path + "/";
+//int mBomSplit(Workpiece *root, bool repeat, std::string path, std::string root_dir, unsigned depth)
+//{
+//	//if (path.empty()) path =".\\";
+//	if(!path.empty())
+//		if (path.back() != '/' && path.back() != '\\') path.push_back('\\');
+//	
+//	//	std::cout << "\n\nMaking directory " << path << "\n";
+//	rose_mkdir(path.c_str());
+//	//Make a locally-scoped design to put all our trash in. we will move it to the trash when we are done.
+//	RoseDesign *garbage = new RoseDesign;
+//
+//	// make directory for all the geometry components
+//	if (depth == 0) 
+//	{
+//		std::string components = root_dir + "/geometry_components";
+//		rose_mkdir(components.c_str());
+//	}
+//
+//	//Get all of the child workpieces into a vector.
+//	unsigned sub_count = root->size_its_components();
+//	//	std::cout << "Assembly " << root->get_its_id() << " has " << sub_count << " components" << std::endl;
+//	std::vector<Workpiece*> children, exported_children;	//Keep track of the children we move
+//	std::vector <DesignAndName> subs;						//Keep track of the designs we move children to
+//	std::vector <std::string> exported_name;				//Keep track of the names of children.
+//	for (unsigned i = 0; i < sub_count; i++) 
+//	{
+//		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(root->get_its_components(i)->getValue());
+//		if (comp == NULL) continue;
+//		Workpiece * child = Workpiece::find(comp->get_component());
+//		if (child == NULL) continue;
+//		children.push_back(child);
+//	}
+//	//For each child, find out if it needs an NAUO attached. Attach one if necessary.
+//	for (unsigned i = 0u, sz = children.size(); i < sz; i++) 
+//	{
+//		Workpiece *child = children[i];
+//		bool need_nuao = false;
+//		for (auto j = 0u; j < sz; j++) {
+//			if (j == i) continue;
+//			if (children[j] == children[i]) {
+//				need_nuao = true;
+//				break;
+//			}
+//		}
+//		std::string outfilename;
+////		if (path.size() > 0)
+////			outfilename = path + "/";
+////		else
+////			outfilename = path;
+//
+//		if (need_nuao) {
+//			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
+//			std::string fname(nauo->id());
+//			fname = SafeName(fname);
+//			outfilename += fname + '-';
+//			fname = SafeName(nauo->name());
+//			outfilename += fname;
+//		}
 //		else
-//			outfilename = path;
-
-		if (need_nuao) {
-			stp_next_assembly_usage_occurrence *nauo = root->get_its_components(i)->getValue();
-			std::string fname(nauo->id());
-			fname = SafeName(fname);
-			outfilename += fname + '-';
-			fname = SafeName(nauo->name());
-			outfilename += fname;
-		}
-		else
-		{
-			std::string fname(child->get_its_id());
-			fname = SafeName(fname);
-			outfilename += fname;
-		}
-		exported_name.push_back(path+outfilename);
-		
-		DesignAndName sub_des = export_workpiece(child, path, outfilename, false);
-		std::cout << "Writing child to file: " <<path << outfilename << " (" << i + 1 << "/" << children.size() << ")\n";
-
-		//ARMsave (sub_des);
-		Workpiece *exported_child = find_root_workpiece(sub_des.GetDesign());
-		subs.push_back(sub_des);
-		exported_children.push_back(exported_child);
-
-	}
-
-	// Now top level design
-	DesignAndName master = export_workpiece(root, path, "master.stp", true);
-	Workpiece *master_root = find_root_workpiece(master.GetDesign());
-	master.GetDesign()->addName("product_definition", master_root->getRootObject());
-	master.GetDesign()->addName("shape_representation", master_root->get_its_geometry());
-	master.GetDesign()->addName("axis_placement", master_root->get_its_geometry()->items()->get(0));
-
-	//	std::cout << "Writing master to file: " << outfilename << std::endl;
-
-	// Change the workpiece of each top level component to the root of a new design
-	for (auto i = 0u; i < sub_count; i++) {
-		Workpiece * exported_child = exported_children[i];
-		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(master_root->get_its_components(i)->getValue());
-		if (comp == NULL) continue;
-		auto itr = exported_name[i].find_first_of('/');
-		for (unsigned j = 0; j < depth; j++)
-		{
-			itr = exported_name[i].find('/', itr + 1);
-		}
-		//		std::string subname(exported_name[i].begin() + itr + 1, exported_name[i].end());
-		//		std::cout << subname << '\n';
-		//		std::string dirname(subname);
-		std::string dirname = "";   // new strategy is for master to go in same directory as children
-
-		stp_product_definition *pd = comp->get_component();
-		stp_product_definition_formation *pdf = pd->formation();
-		stp_product *p = pdf->of_product();
-		rose_move_to_design(p, garbage);
-		rose_move_to_design(pdf, garbage);
-		rose_move_to_design(pd, garbage);
-
-		comp->put_component(exported_child->getRoot());
-		subs[i].GetDesign()->addName("product_definition", exported_child->getRoot());
-		std::string uri(subs[i].GetName());
-		uri += "#product_definition";
-		RoseReference *Ref = rose_make_ref(master.GetDesign(), uri.c_str());
-		Ref->resolved(exported_child->getRoot());
-		MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
-		URIManager = MyURIManager::make(exported_child->getRoot());
-		URIManager->should_go_to_uri(Ref);
-
-		//		addRefAndAnchor(exported_child->getRoot(), subs[i], master, dirname);		//Should be "product_definition"
-
-		ListOfRoseObject tmp;
-
-		stp_representation_relationship *master_rep =
-			ROSE_CAST(stp_representation_relationship, comp->getpath_resulting_orientation(&tmp)->get(3));
-		if (master_rep == nullptr)
-		{
-			std::cerr << "Error getting Representation Relationship.\n";
-			return EXIT_FAILURE;
-		}
-
-
-		stp_representation *rep = master_rep->rep_1();
-		master_rep->rep_1(exported_child->get_its_geometry());
-		auto a2p = exported_child->get_its_geometry()->items()->get(0);
-		if (master_rep->isa(ROSE_DOMAIN(stp_representation_relationship_with_transformation)))
-		{
-			auto rrwt = ROSE_CAST(stp_representation_relationship_with_transformation, master_rep);
-			auto idt = ROSE_CAST(stp_item_defined_transformation, rose_get_nested_object(rrwt->transformation_operator()));
-			if (nullptr != idt)
-			{
-				subs[i].GetDesign()->addName("axis_placement", a2p);
-				idt->transform_item_1(a2p);
-				uri = subs[i].GetName();
-				uri += "#axis_placement";
-				Ref = rose_make_ref(master.GetDesign(), uri.c_str());
-				Ref->resolved(a2p);
-				URIManager = MyURIManager::make(a2p);
-				URIManager->should_go_to_uri(Ref);
-			}
-		}
-		subs[i].GetDesign()->addName("shape_representation", exported_child->get_its_geometry());
-		uri = subs[i].GetName();
-		uri += "#shape_representation";
-		Ref = rose_make_ref(master.GetDesign(), uri.c_str());
-		Ref->resolved(exported_child->get_its_geometry());
-		URIManager = MyURIManager::make(exported_child->get_its_geometry());
-		URIManager->should_go_to_uri(Ref);
-
-		//		addRefAndAnchor(ROSE_CAST(stp_shape_representation,exported_child->get_its_geometry()), subs[i], master, dirname);	//Should be "shape_representation"
-		rep->move(garbage, INT_MAX);
-
-		//The following code removes any geometry from the garbage.
-		auto master_geometry = master_root->get_its_geometry();
-		ListOfRoseObject children;
-		master_geometry->findObjects(&children, INT_MAX, true);
-		for (auto i = 0u, sz = children.size(); i < sz; i++)
-			children[i]->move(master.GetDesign());	//Move contents of list to master.
-	}
-	update_uri_forwarding(master.GetDesign());
-
-	stplib_put_schema(master.GetDesign(), schemas);
-	master.Save();
-	if (repeat)
-	{
-		for (unsigned i = 0u, sz = exported_children.size(); i < sz; i++)
-		{
-			Workpiece * exported_child = exported_children[i];
-			if (exported_child->size_its_components() > 0)
-			{
-				std::string sub_path(exported_name[i]);
-				mBomSplit(exported_child, repeat, sub_path, root_dir, depth + 1);
-			}
-			else
-			{
-				DesignAndName result = split_pmi(exported_child, exported_name[i], depth, root_dir);
-				//if (result.GetDesign() != nullptr) result.GetDesign()->move(garbage, -1);	//Don't need the geometry in memory.
-				//		ARMsave (subs[i]);
-			}
-		}
-	}
-	rose_move_to_trash(garbage);
-	if (depth < 2) rose_empty_trash();	//Don't empty the trash too often, it's slow.
-	return EXIT_SUCCESS;
-}
+//		{
+//			std::string fname(child->get_its_id());
+//			fname = SafeName(fname);
+//			outfilename += fname;
+//		}
+//		exported_name.push_back(path+outfilename);
+//		
+//		DesignAndName sub_des = export_workpiece(child, path, outfilename, false);
+//		std::cout << "Writing child to file: " <<path << outfilename << " (" << i + 1 << "/" << children.size() << ")\n";
+//
+//		//ARMsave (sub_des);
+//		Workpiece *exported_child = find_root_workpiece(sub_des.GetDesign());
+//		subs.push_back(sub_des);
+//		exported_children.push_back(exported_child);
+//
+//	}
+//
+//	// Now top level design
+//	DesignAndName master = export_workpiece(root, path, "master.stp", true);
+//	Workpiece *master_root = find_root_workpiece(master.GetDesign());
+//	master.GetDesign()->addName("product_definition", master_root->getRootObject());
+//	master.GetDesign()->addName("shape_representation", master_root->get_its_geometry());
+//	master.GetDesign()->addName("axis_placement", master_root->get_its_geometry()->items()->get(0));
+//
+//	//	std::cout << "Writing master to file: " << outfilename << std::endl;
+//
+//	// Change the workpiece of each top level component to the root of a new design
+//	for (auto i = 0u; i < sub_count; i++) {
+//		Workpiece * exported_child = exported_children[i];
+//		Workpiece_assembly_component * comp = Workpiece_assembly_component::find(master_root->get_its_components(i)->getValue());
+//		if (comp == NULL) continue;
+//		auto itr = exported_name[i].find_first_of('/');
+//		for (unsigned j = 0; j < depth; j++)
+//		{
+//			itr = exported_name[i].find('/', itr + 1);
+//		}
+//		//		std::string subname(exported_name[i].begin() + itr + 1, exported_name[i].end());
+//		//		std::cout << subname << '\n';
+//		//		std::string dirname(subname);
+//		std::string dirname = "";   // new strategy is for master to go in same directory as children
+//
+//		stp_product_definition *pd = comp->get_component();
+//		stp_product_definition_formation *pdf = pd->formation();
+//		stp_product *p = pdf->of_product();
+//		rose_move_to_design(p, garbage);
+//		rose_move_to_design(pdf, garbage);
+//		rose_move_to_design(pd, garbage);
+//
+//		comp->put_component(exported_child->getRoot());
+//		subs[i].GetDesign()->addName("product_definition", exported_child->getRoot());
+//		std::string uri(subs[i].GetName());
+//		uri += "#product_definition";
+//		RoseReference *Ref = rose_make_ref(master.GetDesign(), uri.c_str());
+//		Ref->resolved(exported_child->getRoot());
+//		MyURIManager *URIManager;	//Make an instance of the class which handles updating URIS
+//		URIManager = MyURIManager::make(exported_child->getRoot());
+//		URIManager->should_go_to_uri(Ref);
+//
+//		//		addRefAndAnchor(exported_child->getRoot(), subs[i], master, dirname);		//Should be "product_definition"
+//
+//		ListOfRoseObject tmp;
+//
+//		stp_representation_relationship *master_rep =
+//			ROSE_CAST(stp_representation_relationship, comp->getpath_resulting_orientation(&tmp)->get(3));
+//		if (master_rep == nullptr)
+//		{
+//			std::cerr << "Error getting Representation Relationship.\n";
+//			return EXIT_FAILURE;
+//		}
+//
+//
+//		stp_representation *rep = master_rep->rep_1();
+//		master_rep->rep_1(exported_child->get_its_geometry());
+//		auto a2p = exported_child->get_its_geometry()->items()->get(0);
+//		if (master_rep->isa(ROSE_DOMAIN(stp_representation_relationship_with_transformation)))
+//		{
+//			auto rrwt = ROSE_CAST(stp_representation_relationship_with_transformation, master_rep);
+//			auto idt = ROSE_CAST(stp_item_defined_transformation, rose_get_nested_object(rrwt->transformation_operator()));
+//			if (nullptr != idt)
+//			{
+//				subs[i].GetDesign()->addName("axis_placement", a2p);
+//				idt->transform_item_1(a2p);
+//				uri = subs[i].GetName();
+//				uri += "#axis_placement";
+//				Ref = rose_make_ref(master.GetDesign(), uri.c_str());
+//				Ref->resolved(a2p);
+//				URIManager = MyURIManager::make(a2p);
+//				URIManager->should_go_to_uri(Ref);
+//			}
+//		}
+//		subs[i].GetDesign()->addName("shape_representation", exported_child->get_its_geometry());
+//		uri = subs[i].GetName();
+//		uri += "#shape_representation";
+//		Ref = rose_make_ref(master.GetDesign(), uri.c_str());
+//		Ref->resolved(exported_child->get_its_geometry());
+//		URIManager = MyURIManager::make(exported_child->get_its_geometry());
+//		URIManager->should_go_to_uri(Ref);
+//
+//		//		addRefAndAnchor(ROSE_CAST(stp_shape_representation,exported_child->get_its_geometry()), subs[i], master, dirname);	//Should be "shape_representation"
+//		rep->move(garbage, INT_MAX);
+//
+//		//The following code removes any geometry from the garbage.
+//		auto master_geometry = master_root->get_its_geometry();
+//		ListOfRoseObject children;
+//		master_geometry->findObjects(&children, INT_MAX, true);
+//		for (auto i = 0u, sz = children.size(); i < sz; i++)
+//			children[i]->move(master.GetDesign());	//Move contents of list to master.
+//	}
+//	update_uri_forwarding(master.GetDesign());
+//
+//	stplib_put_schema(master.GetDesign(), schemas);
+//	master.Save();
+//	if (repeat)
+//	{
+//		for (unsigned i = 0u, sz = exported_children.size(); i < sz; i++)
+//		{
+//			Workpiece * exported_child = exported_children[i];
+//			if (exported_child->size_its_components() > 0)
+//			{
+//				std::string sub_path(exported_name[i]);
+//				mBomSplit(exported_child, repeat, sub_path, root_dir, depth + 1);
+//			}
+//			else
+//			{
+//				DesignAndName result = split_pmi(exported_child, exported_name[i], depth, root_dir);
+//				//if (result.GetDesign() != nullptr) result.GetDesign()->move(garbage, -1);	//Don't need the geometry in memory.
+//				//		ARMsave (subs[i]);
+//			}
+//		}
+//	}
+//	rose_move_to_trash(garbage);
+//	if (depth < 2) rose_empty_trash();	//Don't empty the trash too often, it's slow.
+//	return EXIT_SUCCESS;
+//}
 
 Workpiece *find_root_workpiece(RoseDesign *des)
 {
@@ -469,225 +492,226 @@ Workpiece *find_root_workpiece(RoseDesign *des)
 	return root;
 }
 
-DesignAndName export_workpiece(Workpiece * piece, std::string file_path, std::string stp_file_name, bool is_master)
-{
-	if (piece == NULL)
-		return DesignAndName();
+//DesignAndName export_workpiece(Workpiece * piece, std::string file_path, std::string stp_file_name, bool is_master)
+//{
+//	if (piece == NULL)
+//		return DesignAndName();
+//
+//	ListOfRoseObject exports;
+//	find_workpiece_contents(exports, piece, is_master);
+//	find_style_contents(exports, piece, is_master);
+//
+//	/* After getting all the properties: do the following: */
+//	ARMresolveReferences(&exports);
+//	DesignAndName new_des(file_path, stp_file_name);
+//	ListOfRoseObject * new_list;
+//	new_list = ROSE_CAST(ListOfRoseObject, exports.copy(new_des.GetDesign(), INT_MAX, false));
+//
+//	//    printf ("Number of copied objects in file %s is %d\n", stp_file_name, new_list->size());
+//	delete new_list;  /* Don't want the list itself in the new design */
+//
+//	stix_tag_units(new_des.GetDesign());
+//	ARMpopulate(new_des.GetDesign());
+//
+//	if (is_master) return new_des;
+//
+//
+//	auto new_model = Styled_geometric_model::newInstance(new_des.GetDesign());
+//
+//	int style_count = 0;
+//	for (auto i : ARM_RANGE(Single_styled_item, new_des.GetDesign()))
+//	{
+//		new_model->add_its_styled_items(i.getRoot());
+//		style_count++;
+//	}
+//
+//	//    if (style_count != 0)
+//	//	printf ("Added %d styles to workpiece %s\n", style_count, piece->get_its_id());
+//
+//	//    new_des->save ();
+//
+//	return new_des;
+//}
+//
+//
 
-	ListOfRoseObject exports;
-	find_workpiece_contents(exports, piece, is_master);
-	find_style_contents(exports, piece, is_master);
+//DesignAndName move_geometry(Workpiece * piece, std::string root_dir)
+//{
+//	// directory that contains all the geometry	
+//	std::string geometrydir(root_dir);
+//	std::string pieceid(piece->get_its_id());
+//	geometrydir += "/geometry_components/";
+//	std::string a(piece->get_its_id());
+//	a+= ".stp";
+//	if (rose_file_exists((geometrydir+pieceid+".stp").c_str()))	// Root_dir/geometry_components/pieceid.stp if you're wondering.
+//	{
+//		DesignAndName k;
+//		k.Find(geometrydir, pieceid);
+//		if (k.GetDesign() == nullptr)
+//			k.Open(geometrydir, pieceid);
+//	//		auto a = ROSE.findDesignInWorkspace(geometry.c_str());
+//	//		if (nullptr == a) a = ROSE.findDesign(geometry.c_str());
+//		return k;
+//	//		return nullptr;
+//	}
+//	ListOfRoseObject geo_exports;
+//	find_workpiece_contents(geo_exports, piece, false);
+//
+//	/* After getting all the properties: do the following: */
+//	ARMresolveReferences(&geo_exports);
+//
+//	// for making local copy in current directory
+//	//    std::string geo_file (stp_file_name);
+//	//    geo_file = geo_file + "/geometry.stp";
+//
+//	//std::cout <<"Writing geometry to " <<geometry <<'\n';
+//	DesignAndName geo_des(geometrydir, pieceid);
+//	ListOfRoseObject * geo_list;
+//	geo_list = ROSE_CAST(ListOfRoseObject, geo_exports.copy(geo_des.GetDesign(), INT_MAX));
+//
+//	delete geo_list;  /* Don't want the list itself in the new design */
+//
+//	stix_tag_units(geo_des.GetDesign());
+//	ARMpopulate(geo_des.GetDesign());
+//	Workpiece * component_piece = find_root_workpiece(geo_des.GetDesign());
+//
+//	//TODO: Make a list of things that reference geometry and anchor them here.
+//	
+//	geo_des.GetDesign()->addName("product_definition", component_piece->getRoot());
+//	geo_des.GetDesign()->addName("shape_representation", component_piece->get_its_geometry());
+//	geo_des.GetDesign()->addName("axis_placement", component_piece->get_its_geometry()->items()->get(0));
+//	RoseCursor objs;
+//	objs.traverse(geo_des.GetDesign());
+//	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
+//	RoseObject *mani = objs.next();
+//	if (mani != NULL)
+//		geo_des.GetDesign()->addName("manifold_solid_brep", mani);
+//	
+//	stplib_put_schema(geo_des.GetDesign(), schemas);
+//	
+//	geo_des.Save();
+//	return geo_des;
+//}
 
-	/* After getting all the properties: do the following: */
-	ARMresolveReferences(&exports);
-	DesignAndName new_des(file_path, stp_file_name);
-	ListOfRoseObject * new_list;
-	new_list = ROSE_CAST(ListOfRoseObject, exports.copy(new_des.GetDesign(), INT_MAX, false));
-
-	//    printf ("Number of copied objects in file %s is %d\n", stp_file_name, new_list->size());
-	delete new_list;  /* Don't want the list itself in the new design */
-
-	stix_tag_units(new_des.GetDesign());
-	ARMpopulate(new_des.GetDesign());
-
-	if (is_master) return new_des;
-
-
-	auto new_model = Styled_geometric_model::newInstance(new_des.GetDesign());
-
-	int style_count = 0;
-	for (auto i : ARM_RANGE(Single_styled_item, new_des.GetDesign()))
-	{
-		new_model->add_its_styled_items(i.getRoot());
-		style_count++;
-	}
-
-	//    if (style_count != 0)
-	//	printf ("Added %d styles to workpiece %s\n", style_count, piece->get_its_id());
-
-	//    new_des->save ();
-
-	return new_des;
-}
-
-
-DesignAndName move_geometry(Workpiece * piece, std::string root_dir)
-{
-	// directory that contains all the geometry	
-	std::string geometrydir(root_dir);
-	std::string pieceid(piece->get_its_id());
-	geometrydir += "/geometry_components/";
-	std::string a(piece->get_its_id());
-	a+= ".stp";
-	if (rose_file_exists((geometrydir+pieceid+".stp").c_str()))	// Root_dir/geometry_components/pieceid.stp if you're wondering.
-	{
-		DesignAndName k;
-		k.Find(geometrydir, pieceid);
-		if (k.GetDesign() == nullptr)
-			k.Open(geometrydir, pieceid);
-	//		auto a = ROSE.findDesignInWorkspace(geometry.c_str());
-	//		if (nullptr == a) a = ROSE.findDesign(geometry.c_str());
-		return k;
-	//		return nullptr;
-	}
-	ListOfRoseObject geo_exports;
-	find_workpiece_contents(geo_exports, piece, false);
-
-	/* After getting all the properties: do the following: */
-	ARMresolveReferences(&geo_exports);
-
-	// for making local copy in current directory
-	//    std::string geo_file (stp_file_name);
-	//    geo_file = geo_file + "/geometry.stp";
-
-	//std::cout <<"Writing geometry to " <<geometry <<'\n';
-	DesignAndName geo_des(geometrydir, pieceid);
-	ListOfRoseObject * geo_list;
-	geo_list = ROSE_CAST(ListOfRoseObject, geo_exports.copy(geo_des.GetDesign(), INT_MAX));
-
-	delete geo_list;  /* Don't want the list itself in the new design */
-
-	stix_tag_units(geo_des.GetDesign());
-	ARMpopulate(geo_des.GetDesign());
-	Workpiece * component_piece = find_root_workpiece(geo_des.GetDesign());
-
-	//TODO: Make a list of things that reference geometry and anchor them here.
-	
-	geo_des.GetDesign()->addName("product_definition", component_piece->getRoot());
-	geo_des.GetDesign()->addName("shape_representation", component_piece->get_its_geometry());
-	geo_des.GetDesign()->addName("axis_placement", component_piece->get_its_geometry()->items()->get(0));
-	RoseCursor objs;
-	objs.traverse(geo_des.GetDesign());
-	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
-	RoseObject *mani = objs.next();
-	if (mani != NULL)
-		geo_des.GetDesign()->addName("manifold_solid_brep", mani);
-	
-	stplib_put_schema(geo_des.GetDesign(), schemas);
-	
-	geo_des.Save();
-	return geo_des;
-}
-
-DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned depth, std::string root_dir)
-{
-	if (piece == NULL)
-		return DesignAndName();
-
-	rose_mkdir(stp_file_name.c_str());
-
-	std::string pieceid(piece->get_its_id());
-
-	ListOfRoseObject style_exports;
-	find_style_contents(style_exports, piece, false);
-	ARMresolveReferences(&style_exports);
-
-	std::string pmi_file(stp_file_name);
-	pmi_file += "/pmi.stp";
-
-	DesignAndName style_des;
-	style_des.NewDesign(stp_file_name, "pmi.stp");
-	ListOfRoseObject * style_list;
-	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des.GetDesign(), INT_MAX));
-
-	//std::cout << "Number of copied objects in style file " << stp_file_name << "_pmi.stp is " << style_list->size() << '\n';
-	delete style_list;  /* Don't want the list itself in the new design */
-
-	stix_tag_units(style_des.GetDesign());
-	ARMpopulate(style_des.GetDesign());
-
-	Styled_geometric_model * new_model = NULL;
-	int style_count = 0;
-	for (auto &ssi : ARM_RANGE(Single_styled_item, style_des.GetDesign()))
-	{
-		if (new_model == NULL) {
-			new_model = Styled_geometric_model::newInstance(style_des.GetDesign());
-			style_des.GetDesign()->addName("styles", new_model->getRoot());
-		}
-		new_model->add_its_styled_items(ssi.getRoot());
-		style_count++;
-		if (ssi.get_its_geometry()) {
-			stp_representation_item *repi = ssi.get_its_geometry();
-			std::string master_name("master.stp#");
-			master_name += repi->domain()->name();
-			RoseReference *entity_reference = rose_make_ref(style_des.GetDesign(), master_name.c_str());
-			stp_styled_item *style = ssi.getRoot();
-			rose_put_ref(entity_reference, style, "item");
-			repi->move(rose_trash(), -1);
-		}
-
-	}
-
-	update_uri_forwarding(style_des.GetDesign());
-
-	stplib_put_schema(style_des.GetDesign(), schemas);
-	style_des.Save();
-
-	DesignAndName geo_des = move_geometry(piece, root_dir);
-
-	std::string master_file(stp_file_name);
-	master_file += "/master.stp";
-	DesignAndName master_des(stp_file_name,"master.stp");
-//	RoseDesign *master_des = ROSE.newDesign(master_file.c_str());
-
-	int count = 10;
-	if (new_model) {
-
-		RoseReference *styles = rose_make_ref(master_des.GetDesign(), "pmi.stp#styles");
-		master_des.GetDesign()->addName("styles", styles);
-		styles->entity_id(count);
-		count = count + 10;
-	}
-
-	// directory that contains all the geometry
-	std::string prefix("../");
-	for (unsigned i = 0; i < depth; i++)
-		prefix.append("../");
-	prefix += "geometry_components/";
-	prefix += pieceid;
-	prefix += ".stp";
-
-	RoseCursor objs;
-	objs.traverse(geo_des.GetDesign());
-	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
-	RoseObject *mani = objs.next();
-	if (nullptr != mani)
-	{
-		std::string man_URI(prefix);
-		man_URI += "#manifold_solid_brep";
-		RoseReference *manifold = rose_make_ref(master_des.GetDesign(), man_URI.c_str());
-		master_des.GetDesign()->addName("manifold_solid_brep", manifold);
-		manifold->entity_id(count);
-		count = count + 10;
-	}
-	std::string shape_URI(prefix);
-	shape_URI += "#shape_representation";
-	RoseReference *shape_rep = rose_make_ref(master_des.GetDesign(), shape_URI.c_str());
-	master_des.GetDesign()->addName("shape_representation", shape_rep);
-	shape_rep->entity_id(count);
-	count = count + 10;
-
-	std::string definition_URI(prefix);
-	definition_URI += "#product_definition";
-	RoseReference *definition = rose_make_ref(master_des.GetDesign(), definition_URI.c_str());
-	master_des.GetDesign()->addName("product_definition", definition);
-	definition->entity_id(count);
-	count = count + 10;
-
-	std::string axis_URI(prefix);
-	axis_URI += "#axis_placement";
-	RoseReference *axis = rose_make_ref(master_des.GetDesign(), axis_URI.c_str());
-	master_des.GetDesign()->addName("axis_placement", axis);
-	axis->entity_id(count);
-	count = count + 10;
-
-
-	stplib_put_schema(master_des.GetDesign(), schemas);
-	master_des.Save();
-
-	return geo_des;
-
-}
+//DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned depth, std::string root_dir)
+//{
+//	if (piece == NULL)
+//		return DesignAndName();
+//
+//	rose_mkdir(stp_file_name.c_str());
+//
+//	std::string pieceid(piece->get_its_id());
+//
+//	ListOfRoseObject style_exports;
+//	find_style_contents(style_exports, piece, false);
+//	ARMresolveReferences(&style_exports);
+//
+//	std::string pmi_file(stp_file_name);
+//	pmi_file += "/pmi.stp";
+//
+//	DesignAndName style_des;
+//	style_des.NewDesign(stp_file_name, "pmi.stp");
+//	ListOfRoseObject * style_list;
+//	style_list = ROSE_CAST(ListOfRoseObject, style_exports.copy(style_des.GetDesign(), INT_MAX));
+//
+//	//std::cout << "Number of copied objects in style file " << stp_file_name << "_pmi.stp is " << style_list->size() << '\n';
+//	delete style_list;  /* Don't want the list itself in the new design */
+//
+//	stix_tag_units(style_des.GetDesign());
+//	ARMpopulate(style_des.GetDesign());
+//
+//	Styled_geometric_model * new_model = NULL;
+//	int style_count = 0;
+//	for (auto &ssi : ARM_RANGE(Single_styled_item, style_des.GetDesign()))
+//	{
+//		if (new_model == NULL) {
+//			new_model = Styled_geometric_model::newInstance(style_des.GetDesign());
+//			style_des.GetDesign()->addName("styles", new_model->getRoot());
+//		}
+//		new_model->add_its_styled_items(ssi.getRoot());
+//		style_count++;
+//		if (ssi.get_its_geometry()) {
+//			stp_representation_item *repi = ssi.get_its_geometry();
+//			std::string master_name("master.stp#");
+//			master_name += repi->domain()->name();
+//			RoseReference *entity_reference = rose_make_ref(style_des.GetDesign(), master_name.c_str());
+//			stp_styled_item *style = ssi.getRoot();
+//			rose_put_ref(entity_reference, style, "item");
+//			repi->move(rose_trash(), -1);
+//		}
+//
+//	}
+//
+//	update_uri_forwarding(style_des.GetDesign());
+//
+//	stplib_put_schema(style_des.GetDesign(), schemas);
+//	style_des.Save();
+//
+//	DesignAndName geo_des = move_geometry(piece, root_dir);
+//
+//	std::string master_file(stp_file_name);
+//	master_file += "/master.stp";
+//	DesignAndName master_des(stp_file_name,"master.stp");
+////	RoseDesign *master_des = ROSE.newDesign(master_file.c_str());
+//
+//	int count = 10;
+//	if (new_model) {
+//
+//		RoseReference *styles = rose_make_ref(master_des.GetDesign(), "pmi.stp#styles");
+//		master_des.GetDesign()->addName("styles", styles);
+//		styles->entity_id(count);
+//		count = count + 10;
+//	}
+//
+//	// directory that contains all the geometry
+//	std::string prefix("../");
+//	for (unsigned i = 0; i < depth; i++)
+//		prefix.append("../");
+//	prefix += "geometry_components/";
+//	prefix += pieceid;
+//	prefix += ".stp";
+//
+//	RoseCursor objs;
+//	objs.traverse(geo_des.GetDesign());
+//	objs.domain(ROSE_DOMAIN(stp_manifold_solid_brep));
+//	RoseObject *mani = objs.next();
+//	if (nullptr != mani)
+//	{
+//		std::string man_URI(prefix);
+//		man_URI += "#manifold_solid_brep";
+//		RoseReference *manifold = rose_make_ref(master_des.GetDesign(), man_URI.c_str());
+//		master_des.GetDesign()->addName("manifold_solid_brep", manifold);
+//		manifold->entity_id(count);
+//		count = count + 10;
+//	}
+//	std::string shape_URI(prefix);
+//	shape_URI += "#shape_representation";
+//	RoseReference *shape_rep = rose_make_ref(master_des.GetDesign(), shape_URI.c_str());
+//	master_des.GetDesign()->addName("shape_representation", shape_rep);
+//	shape_rep->entity_id(count);
+//	count = count + 10;
+//
+//	std::string definition_URI(prefix);
+//	definition_URI += "#product_definition";
+//	RoseReference *definition = rose_make_ref(master_des.GetDesign(), definition_URI.c_str());
+//	master_des.GetDesign()->addName("product_definition", definition);
+//	definition->entity_id(count);
+//	count = count + 10;
+//
+//	std::string axis_URI(prefix);
+//	axis_URI += "#axis_placement";
+//	RoseReference *axis = rose_make_ref(master_des.GetDesign(), axis_URI.c_str());
+//	master_des.GetDesign()->addName("axis_placement", axis);
+//	axis->entity_id(count);
+//	count = count + 10;
+//
+//
+//	stplib_put_schema(master_des.GetDesign(), schemas);
+//	master_des.Save();
+//
+//	return geo_des;
+//
+//}
 
 // Find all the AIM object linked to a workpiece
 // This function is recursive
