@@ -5,7 +5,17 @@
 #include <string>
 
 
-void copy(RoseObject *obj, RoseDesign * out);
+RoseObject *copy(RoseObject *obj, RoseDesign * out);
+void AddReferenceMgr(RoseObject* object, RoseAttribute * att, unsigned idx, RoseObject *user);
+void ParseAtt(void (callback)(RoseObject *, RoseAttribute *, unsigned, void *), void *userdata, RoseObject * obj, RoseAttribute * att, unsigned idx = 0u);
+
+struct RRMdata
+{
+	RoseObject * original;
+	RoseObject * copy;
+};
+
+void ResolveRefMgr(RoseObject* object, RoseAttribute * att, unsigned idx, RRMdata *user);
 
 int Split(RoseDesign *des)
 {
@@ -42,105 +52,108 @@ int Split(RoseDesign *des)
 	}
 	for (auto i : outdesigns)
 	{
-		std::cout << "Design: " << i.first <<'\n';
+		std::cout << "Saving Design: " << i.first <<'\n';
+		auto lastslash = i.first.find_last_of('/');
+		auto dirstr = i.first.substr(0, lastslash);
+		auto fname = i.first.substr(lastslash+1, i.first.size() - lastslash-1);
+		i.second->fileDirectory(dirstr.c_str());
+		i.second->name(fname.c_str());
+		if (!rose_dir_exists(dirstr.c_str()))
+			rose_mkdir(dirstr.c_str());
+		i.second->save();
 	}
 	return EXIT_SUCCESS;
 }
 
 //Custom copy function which manages inter-object relations across multiple calls.
-void copy(RoseObject *obj, RoseDesign * out)
+RoseObject *copy(RoseObject *obj, RoseDesign * out)
 {
 	auto mgr = CopyManager::make(obj);	//Returns existant manager or makes a new one.
-	if (mgr->GetCopy(out)) return;	//Object already has copy in given design.
+	if (mgr->GetCopy(out)) return mgr->GetCopy(out);	//Object already has copy in given design.
 	auto outobj = obj->copy(out);	//copy the object to the given design. Get the copied object that we may parse its children and inform them of our existence.
 	mgr->AddCopy(out, outobj);
-	for (auto i = 0u, sz = outobj->attributes()->size(); i < sz; i++)
+	for (auto i = 0u, sz = outobj->attributes()->size(); i < sz; i++)	//Check all the attributes. if they have copies in our current design, then we change the attribute to point to the local object. Otherwise, mark the remote object as being referenced by us and deal with it later.
 	{
 		auto child = outobj->attributes()->get(i);
 		if (child->isSimple()) continue;
-		auto fp = (void*(*)(RoseObject*, void*))&AddReferenceMgr;
-		AggSelectOrEntity(child, fp,obj);	//Attach a reference to the child so when we copy it it resolves it.
+		auto fp = (void(*)(RoseObject*,RoseAttribute *,unsigned, void*))&AddReferenceMgr;
+		ParseAtt(fp,outobj,outobj,child);
 	}
-
+	auto referenced = ReferenceManager::find(obj);	//Finally we find anything which referenced the original object in the copied object's design, and resolve the refererences accordingly.
+	if (nullptr == referenced) return outobj;
+	auto listofreferenced = referenced->getreferences(out);
+	for (auto i : listofreferenced)
+	{
+		for (auto j = 0u, sz = i->attributes()->size(); j < sz; j++)
+		{
+			auto fp = (void(*)(RoseObject*, RoseAttribute*, unsigned, void*)) &ResolveRefMgr;
+			struct RRMdata userdata;
+			userdata.original = obj;
+			userdata.copy = outobj;
+			ParseAtt(fp, &userdata, i, i->attributes()->get(j));
+		}
+	}
+	return outobj;
 }
 
 
-//Given an object which is an attribute of a recently copied object, and the copied object itself,
 //Checks if the attribute has a copy in the copied object's design, if so, resolves the attribute to point to that object.
 //Otherwise, adds(or appends to) a reference manager to the attributed object with the copied object.
 
-void AddReferenceMgr(RoseObject* usedobject,RoseObject * user)
+void AddReferenceMgr(RoseObject* object,RoseAttribute * att,unsigned idx,RoseObject *user)
 {
+	auto usedobject = object->getObject(att,idx);
+	if (nullptr == usedobject) return;	//There ain't nothin there, boss.
+	if (usedobject->design() == user->design()) return;	//the attribute is in fact currently IN our design!
 	auto copycheck = CopyManager::find(usedobject);
-	auto copyofatt = copycheck->GetCopy(user->design());
-	auto fp = (void*(*)(RoseObject *, void *)) changeref;
-	for (auto i = 0u, sz = user->attributes()->size(); i < sz; i++)
+	if (nullptr!=copycheck)
 	{
-		auto j = user->attributes()->get(i);
-		if (j->isSimple()) continue;
-		int * q = (int*)AggSelectOrEntity(j, fp, usedobject);
-		if (q == nullptr) continue;
-		if (*q == 1)
-			user->attributes()->putObject(copyofatt, i);
+		auto copyofatt = copycheck->GetCopy(user->design());
+		if (nullptr != copyofatt)
+		{
+			object->putObject(copyofatt, att, idx);
+			return;
+		}
 	}
 	auto a = ReferenceManager::make(usedobject);
 	a->addreference(user->design(), user);
 	return;
 }
 
-int *changeref(RoseObject *original, RoseObject *searchobject)
+void ResolveRefMgr(RoseObject* object, RoseAttribute * att, unsigned idx, RRMdata *user)
 {
-	if (original == searchobject)
+	auto obj = object->getObject(att, idx);
+	if (obj == user->original)
 	{
-		int i = 1;
-		return &i;
+		object->putObject(user->copy,att, idx);
 	}
-	int i = 0;
-	return &i;
+	return;
 }
+
 
 //Given a rose object, will call given function on the underlying entity(s), regardless of original objects type- if the given object is a nested aggregate, for example, it will find any underlying objects and call the given function on the found objects.  
-void * AggSelectOrEntity(RoseObject * obj,void *(*cbfunction)(RoseObject*,void *userdata),void *userdata=nullptr)
+void ParseAtt(void (callback)(RoseObject *,RoseAttribute *,unsigned,void *),void *userdata, RoseObject * obj, RoseAttribute * att,unsigned idx)
 {
-	if (obj->isa(ROSE_DOMAIN(RoseUnion)))
+	if (nullptr == att ||nullptr ==obj)
+		return;
+	if (att->isSimple())
+		return;
+	if (att->isEntity())
+		return callback(obj, att, idx, userdata);
+	RoseObject * val = obj->getObject(att, idx);
+	if (nullptr==val) return;
+	if (val->isa(ROSE_DOMAIN(RoseAggregate)))
 	{
-		return cbfunction(rose_get_nested_object(ROSE_CAST(RoseUnion,obj)),userdata);
-	}
-	if (obj->isa(ROSE_DOMAIN(RoseAggregate)))
-	{
-		if (obj->attributes()->get(0)->isSimple) return;	//This aggregate has no objects in it.
+		RoseAttribute * agg_att = val->getAttribute();
 		for (auto i = 0u, sz = obj->size(); i < sz; i++)
 		{
-			AggSelectOrEntity(obj->getObject(i),cbfunction,userdata);
+			ParseAtt(callback, userdata, val, agg_att, i);
 		}
-		return;
 	}
-	if (obj->isa(ROSE_DOMAIN(RoseStructure)))
+	else if (val->isa(ROSE_DOMAIN(RoseUnion)))
 	{
-		return cbfunction(obj,userdata);
-	}
-	return nullptr;
-}
-
-void checkagg(RoseAttribute * att,unsigned idx=0u)
-{
-	if (att->isSelect())
-	{
-		auto a =att->getObject();
-		checkagg(a);
-	}
-	if (att->isa(ROSE_DOMAIN(RoseAggregate)))
-	{
-		if (att->attributes()->get(0)->isSimple) return;	//This aggregate has no objects in it.
-		for (auto i = 0u, sz = att->size(); i < sz; i++)
-		{
-			checkagg(att->getObject(i), i);
-		}
-		return;
-	}
-	if (att->isa(ROSE_DOMAIN(RoseStructure)))
-	{
-		//do stuff to it. we know its position
+		RoseAttribute * unionatt = val->getAttribute();
+		ParseAtt(callback,userdata,val, unionatt, 0);
 	}
 	return;
 }
