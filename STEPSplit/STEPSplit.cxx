@@ -62,6 +62,7 @@ int MarkForSplit(vertex &root);
 int MarkAsmMaster(vertex &master);
 int MarkLeaf(vertex &leaf);
 int MarkGeometry(vertex &leaf);
+int MarkPMI(vertex &leaf);
 std::vector<std::string> NameChildren(Workpiece * Parent, std::vector<Workpiece *> &Children);
 void NameChildren(Workpiece *Parent, std::vector<vertex> &children);
 int Split(RoseDesign *des);
@@ -198,17 +199,21 @@ int MarkAsmMaster(vertex &master)
 }
 int MarkLeaf(vertex &leaf)
 {
-	MarkGeometry(leaf);
 	std::cout << leaf.dir <<"\\" << leaf.name <<".stp I am leaf.\n";
+	MarkGeometry(leaf);
+	MarkPMI(leaf);
+	//TODO: mark the rest of the leaf stuff (leaf's master.stp)
 	return 0;
 }
 int MarkGeometry(vertex &leaf)	//We only mark geometry on leaves, as far as I can tell those are the only assemblies that should have geometry!
 {
-	std::string geometrydir("geometry_components/");
+	std::string geometrydir = leaf.dir.substr(0, leaf.dir.find_first_of('\\')+1);
+	geometrydir+="geometry_components\\";
 	geometrydir += leaf.node->get_its_id();
 	ListOfRoseObject geo_exports;
 	find_workpiece_contents(geo_exports, leaf.node, false);
-	ARMresolveReferences(&geo_exports);
+	geo_exports = *ROSE_CAST(ListOfRoseObject, geo_exports.findObjects(nullptr, INT_MAX, false));	//Get all children. Every last one. We need to mark them all!
+	//ARMresolveReferences(&geo_exports);
 	for (auto i = 0u, sz = geo_exports.size(); i < sz; i++)
 	{
 		auto obj=geo_exports.get(i);
@@ -221,6 +226,31 @@ int MarkGeometry(vertex &leaf)	//We only mark geometry on leaves, as far as I ca
 		mgr->addfile(geometrydir);	//The manager transparently handles uniqueness of filenames, if we've already said this goes in "NUT.stp" it doesn't matter- we won't have any duplication.
 	}
 }
+
+int MarkPMI(vertex &leaf)	// Get all the PMI data from the leaf node and mark it.
+{
+		std::string pmi_file(leaf.dir);
+		ListOfRoseObject style_exports;
+		find_style_contents(style_exports, leaf.node, false);
+		//ARMresolveReferences(&style_exports);
+		style_exports = *ROSE_CAST(ListOfRoseObject, style_exports.findObjects(nullptr, INT_MAX, false));	//Get all children. Every last one. We need to mark them all!
+
+		//pmi_file += leaf.name;
+		pmi_file += "/pmi.stp";
+		for (auto i = 0u, sz = style_exports.size(); i < sz; i++)
+		{
+			auto obj = style_exports.get(i);
+			std::cout << "adding a style thing: " << obj->className() << '\n';
+			auto mgr = MoveManager::make(obj);
+			if (!mgr)
+			{
+				std::cerr << "Error Making Manager. Object EID: " << obj->entity_id() << '\n';
+				return EXIT_FAILURE;
+			}
+			mgr->addfile(pmi_file);
+		}
+}
+
 //Given a workpiece and a list of its children, sets the vertex names, ensuring they are unique.
 void NameChildren(Workpiece *Parent, std::vector<vertex> &children)
 {
