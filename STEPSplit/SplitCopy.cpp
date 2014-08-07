@@ -20,12 +20,14 @@ struct RRMdata
 void ResolveRefMgr(RoseObject* parent, RRMdata *childobjs, RoseAttribute * att, unsigned idx = 0u);
 int Split(RoseDesign *des)
 {
+	des->saveAs("TESTESTESTESTESTEST");
 	std::map<std::string, RoseDesign*> outdesigns;
 	for (auto &i : ROSE_RANGE(RoseObject, des))
 	{
 		auto mgr = MoveManager::find(&i);
 		if (nullptr != mgr)
 		{
+
 			auto files = mgr->getfiles();
 			auto itr = files.begin();
 			auto fname = *itr;
@@ -52,6 +54,43 @@ int Split(RoseDesign *des)
 			ManageAttributes(&i);
 			RedirectReferences(&i, &i);
 			MakeAnchors(&i);
+		}
+	}
+	RoseCursor refcursor;
+	refcursor.traverse(des->reference_section());
+	refcursor.domain(ROSE_DOMAIN(RoseReference));
+	RoseObject * NextRef;
+	while ((NextRef = refcursor.next()) != nullptr)
+	{
+		auto mgr = MoveManager::find(NextRef);
+		if (nullptr != mgr)
+		{
+			auto files = mgr->getfiles();
+			auto itr = files.begin();
+			auto fname = *itr;
+			auto outdesign = outdesigns[fname];
+			if (outdesign == nullptr)
+			{
+				outdesign = ROSE.newDesign(fname.c_str());
+				outdesigns[fname] = outdesign;
+			}
+			NextRef->move(outdesign);
+			itr++;
+			while (itr != files.end())	//First time it is a move, every subsequent time it is a copy. If there's only one output file, then this loop shall not be evaluated.
+			{
+				fname = *itr;
+				auto outdesign = outdesigns[fname];
+				if (outdesign == nullptr)
+				{
+					outdesign = ROSE.newDesign(fname.c_str());
+					outdesigns[fname] = outdesign;
+				}
+				copy(NextRef, outdesign);
+				itr++;
+			}
+			ManageAttributes(NextRef);
+			RedirectReferences(NextRef,NextRef);
+			MakeAnchors(NextRef);
 		}
 	}
 
@@ -84,12 +123,12 @@ int Split(RoseDesign *des)
 			rose_mkdir(dirstr.c_str());
 		}
 		i.second->save();
-		delete i.second;
+		//delete i.second;
 	}
 	return EXIT_SUCCESS;
 }
 
-//Make any anchors required for an object.
+//Make any anchors required for an object. Returns number of anchors made.
 int MakeAnchors(RoseObject * obj)
 {
 	auto anchormgr = AnchorManager::find(obj);
