@@ -26,7 +26,6 @@
   <ItemGroup>
     <ClInclude Include="ARMRange.h" />
     <ClInclude Include="classmappy.h" />
-    <ClInclude Include="DesignAndName.h" />
     <ClInclude Include="ROSERange.h" />
     <ClInclude Include="custommanagers.h" />
     <ClInclude Include="SplitCopy.h" />

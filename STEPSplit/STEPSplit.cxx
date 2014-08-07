@@ -27,7 +27,6 @@
 #include "custommanagers.h"
 #include "ARMRange.h"
 #include "ROSERange.h"
-#include "DesignAndName.h"
 #pragma comment(lib,"stpcad_stix.lib")
 #pragma comment(lib,"stpcad.lib")
 #pragma comment(lib,"stpcad_arm.lib")
@@ -47,15 +46,10 @@ typedef struct vertex
 } vertex;
 
 // Routines written by MH & adapted by Samson
-int mBomSplit(Workpiece *root, bool repeat, std::string path, std::string root_dir, unsigned depth = 0);
 Workpiece * find_root_workpiece(RoseDesign * des);
-DesignAndName export_workpiece(Workpiece * piece, std::string file_path, std::string stp_file_name, bool is_master);
 bool find_workpiece_contents(ListOfRoseObject &exports, Workpiece * piece, bool is_master);
-//bool find_approval_contents(ListOfRoseObject &exports, Approval * approval);
-//bool find_security_classification_contents(ListOfRoseObject &exports, Security_classification_assignment * sa);
 bool find_style_contents(ListOfRoseObject &exports, Workpiece *piece, bool is_master);
 bool style_applies_to_workpiece(Single_styled_item * ssi, Workpiece * piece, bool is_master);
-DesignAndName split_pmi(Workpiece * piece, std::string stp_file_name, unsigned depth, std::string root_dir);
 
 int FixRelations(RoseDesign * des);
 int MarkForSplit(vertex &root);
@@ -230,25 +224,56 @@ int MarkGeometry(vertex &leaf)	//We only mark geometry on leaves, as far as I ca
 int MarkPMI(vertex &leaf)	// Get all the PMI data from the leaf node and mark it.
 {
 		std::string pmi_file(leaf.dir);
-		ListOfRoseObject style_exports;
-		find_style_contents(style_exports, leaf.node, false);
-		//ARMresolveReferences(&style_exports);
-		style_exports = *ROSE_CAST(ListOfRoseObject, style_exports.findObjects(nullptr, INT_MAX, false));	//Get all children. Every last one. We need to mark them all!
-
-		//pmi_file += leaf.name;
 		pmi_file += "/pmi.stp";
-		for (auto i = 0u, sz = style_exports.size(); i < sz; i++)
+		ListOfRoseObject style_exports;
+//		find_style_contents(style_exports, leaf.node, false);
+
+		for (auto &ssi : ARM_RANGE(Single_styled_item, leaf.node->design()))			//TODO: Big speed improvement possible- replace style_applies_to_workpiece with a manager system attached to workpieces, which has pointers to all the SSIs that point to the workpiece.
 		{
-			auto obj = style_exports.get(i);
-			std::cout << "adding a style thing: " << obj->className() << '\n';
-			auto mgr = MoveManager::make(obj);
-			if (!mgr)
+			if (style_applies_to_workpiece(&ssi, leaf.node, false))
 			{
-				std::cerr << "Error Making Manager. Object EID: " << obj->entity_id() << '\n';
-				return EXIT_FAILURE;
+				auto geom = ssi.get_its_geometry();
+				ssi.getAIMObjects(&style_exports);
+				for (unsigned i = 0; i < style_exports.size(); i++)
+				{
+					auto obj = style_exports.get(i);
+					std::cout << "adding a style thing: " << obj->domain()->name() << '\n';
+					if (obj == geom)	//We don't want the geometry in the PMI file, just a reference and anchor to it.
+					{
+						auto mgr = AnchorManager::make(geom);
+						std::string anchortext = geom->domain()->name();
+						anchortext += "-" + leaf.name + "-style";	//it should look something like "manifold_solid_brep-BOLT1-style"
+						mgr->AddAnchor(anchortext);	// something later will make an anchor in geometry which looks like <manifold_solid_brep-BOLT1-style>=#123
+						std::string reftxt;
+						auto ofst = 0u, last=(unsigned)leaf.dir.find_last_of('\\');
+						while (ofst != std::string::npos &&ofst < last)
+						{
+							ofst = leaf.dir.find('\\', ofst+1);
+							reftxt += "../";
+						}
+						reftxt += "geometry_components/";	//reftxt looks like "../../geometry_components/"
+						reftxt += leaf.node->get_its_id();	//"../../geometry_components/BOLT"
+						reftxt += ".stp#";					//"../../geometry_components/BOLT.stp#"
+						reftxt += anchortext;				//"../../geometry_components/BOLT.stp#manifold_solid_brep-BOLT1-style"
+						RoseReference * ref = rose_make_ref(leaf.node->design(), reftxt.c_str());
+						auto movemgr = MoveManager::make(ref);
+						rose_put_ref(ref, ssi.getRootObject(), "item");
+						movemgr->addfile(pmi_file);
+					}
+					else
+					{
+						auto mgr = MoveManager::make(obj);
+						if (!mgr)
+						{
+							std::cerr << "Error Making Manager. Object EID: " << obj->entity_id() << '\n';
+							return EXIT_FAILURE;
+						}
+						mgr->addfile(pmi_file);
+					}
+				}
 			}
-			mgr->addfile(pmi_file);
 		}
+		return EXIT_SUCCESS;
 }
 
 //Given a workpiece and a list of its children, sets the vertex names, ensuring they are unique.
