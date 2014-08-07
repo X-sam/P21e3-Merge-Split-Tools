@@ -9,7 +9,7 @@ RoseObject *copy(RoseObject *obj, RoseDesign * out);
 void AddReferenceMgr(RoseObject* usedobject, RoseObject *user, RoseAttribute * att, unsigned idx = 0u);
 void ManageAttributes(RoseObject * obj);
 void RedirectReferences(RoseObject * original, RoseObject *copy);
-int ClearNulls(RoseSet &set);
+int MakeAnchors(RoseObject *obj);
 
 struct RRMdata
 {
@@ -51,6 +51,7 @@ int Split(RoseDesign *des)
 			}
 			ManageAttributes(&i);
 			RedirectReferences(&i, &i);
+			MakeAnchors(&i);
 		}
 	}
 
@@ -82,39 +83,25 @@ int Split(RoseDesign *des)
 			}
 			rose_mkdir(dirstr.c_str());
 		}
-		for (auto &j : ROSE_RANGE(RoseSet, i.second))
-		{
-//			ClearNulls(j);	//Doesn't work atm
-		}
 		i.second->save();
 		delete i.second;
 	}
 	return EXIT_SUCCESS;
 }
 
-//(#4, #8, $, #15, #16, #23, $, $, #42) -> (#4,#8,#15,#16,#23,#42)
-int ClearNulls(RoseSet &set)	
+//Make any anchors required for an object.
+int MakeAnchors(RoseObject * obj)
 {
-	auto lastval = 0u;
-	auto att = set.getAttribute();
-	char bitflags = 0x00;
-	if (att->isSimple())
+	auto anchormgr = AnchorManager::find(obj);
+	if (nullptr == anchormgr) return 0;
+	auto anchorcount = 0u;
+	auto anchorlist = anchormgr->GetAnchors();
+	for (auto i : anchorlist)
 	{
-		return EXIT_FAILURE;
+		obj->design()->addName(i.c_str(), obj);
+		anchorcount++;
 	}
-	for (auto i = 0u, sz = set.size(); i < sz; i++)
-	{
-		auto curobj = set.getObject(i);
-		if (nullptr == curobj) continue;	//if we hit a $ we don't increment lastval.
-		if (i == 0) continue; //don't want to check the value of (unsigned)(0 - 1) - THAT'S UNDEFINED BEHAVIOUR.
-		if (lastval < (i - 1))	//If the last known value is not the one to our left, we need to move our current value to the spot after lastval.
-		{
-			set.putObject(curobj, lastval + 1);
-		}
-		lastval++;
-	}
-	set.size(lastval + 1);
-	return EXIT_SUCCESS;
+	return anchorcount;
 }
 
 //Custom copy function which manages inter-object relations across multiple calls.
