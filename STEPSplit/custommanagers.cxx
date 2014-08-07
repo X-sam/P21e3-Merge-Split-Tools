@@ -1,7 +1,3 @@
-
-// Create a manager object to hold the roseref the object should be
-// replaced with then traverse everything in the design and do a
-// put_ref when you find one.
 #include "custommanagers.h"
 
 void print_use(RoseRefUsage * ru)
@@ -126,3 +122,4 @@ ROSE_IMPLEMENT_MANAGER_COMMON(MyURIManager);
 ROSE_IMPLEMENT_MANAGER_COMMON(MoveManager);
 ROSE_IMPLEMENT_MANAGER_COMMON(CopyManager);
 ROSE_IMPLEMENT_MANAGER_COMMON(ReferenceManager);
+ROSE_IMPLEMENT_MANAGER_COMMON(AnchorManager);
