@@ -11,11 +11,11 @@ int DesignNumber = 0;
 std::map<std::string, std::vector<int>> nametodesign;
 class DesignAndName
 {
-	RoseDesign * design =nullptr;
-	std::string name ="";
+	RoseDesign * design;
+	std::string name;
 public:
-	DesignAndName() {};
-	DesignAndName(const std::string &path,const std::string &inname) 
+	DesignAndName() :design(nullptr), name("") {};
+	DesignAndName(const std::string &path, const std::string &inname) : design(nullptr), name("")
 	{ 
 		Find(path,inname);
 		if (design == nullptr)

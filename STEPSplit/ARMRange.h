@@ -84,7 +84,7 @@ public:
 
 			T *dumy = T::newInstance(rose_trash());
 			//We need to lookup the ARMCast function for the class, so we check the lookup table using the class name to get a pointer to the corresponding ARMCastTo... function.
-			fp = ARMCastLookupTable.at(dumy->getModuleName());
+			fp = ARMCastLookupTable(dumy->getModuleName());
 			//Need initial increment to get the first next()
 			increment();
 		}
