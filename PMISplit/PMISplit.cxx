@@ -10,6 +10,7 @@
 #include <iostream>
 #include <ARM.h>
 #include "scan.h"
+#include "GUID.h"
 #include <ctype.h>
 
 #pragma comment(lib,"stpman_stix.lib")
@@ -84,15 +85,17 @@ int main(int argc, char* argv[])
 
 
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
-	std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
-	anchor.append("_split_item");				//"advanced_face_split_item"
-	anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
-
+	std::string anchor = get_guid();	//Anchor is now a guid. 1234abcd-56789-0000-0000-abcd12340000 or something like that.
+	anchor.append((const char*)obj->domain()->name());	//1234abcd-56789-0000-0000-abcd12340000advanced_face
+	//std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
+	//anchor.append("_split_item");				//"advanced_face_split_item"
+	//anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
+	
 	ProdOut->addName(anchor.c_str(), obj);	//This makes the anchor.
 
 	std::string reference(dir);	//let's make the reference text. start with the output directory 
 	reference.append(ProdOut->name());	//Add the file name.
-	reference.append(".stp#" + anchor); //Finally add the file type, a pound, and the anchor. It'll look like "folder/file.stp#advanced_face_split_item123"
+	reference.append(".stp#" + anchor); //Finally add the file type, a pound, and the anchor. It'll look like "folder/file.stp#1234abcd-56789-0000-0000-abcd12340000advanced_face"
 
 	RoseReference *ref = rose_make_ref(master, reference.c_str());	//Make a reference in the master output file.
 	ref->resolved(obj);	//Reference is resolved to the object that we passed in, which is currently residing in the ProdOut design.
