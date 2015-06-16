@@ -86,7 +86,8 @@ int main(int argc, char* argv[])
 
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor = get_guid();	//Anchor is now a guid. 1234abcd-56789-0000-0000-abcd12340000 or something like that.
-	anchor.append((const char*)obj->domain()->name());	//1234abcd-56789-0000-0000-abcd12340000advanced_face
+	anchor.push_back('-');				//to distinguish the name.
+	anchor.append((const char*)obj->domain()->name());	//1234abcd-56789-0000-0000-abcd12340000-advanced_face
 	//std::string anchor((const char*)obj->domain()->name());	//anchor now looks like "advanced_face" or "manifold_solid_brep"
 	//anchor.append("_split_item");				//"advanced_face_split_item"
 	//anchor.append(std::to_string(obj->entity_id()));	//"advanced_face_split_item123"
