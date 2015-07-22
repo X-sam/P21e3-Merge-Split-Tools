@@ -21,8 +21,10 @@ void handleEntity(RoseObject * obj);
 void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination);
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir = "");
 
-void MoveGeometry(RoseDesign * source, RoseDesign * dest);
+void MovePMI(RoseDesign * source, RoseDesign * dest,RoseMark forbidden);
 
+void markgeo(RoseDesign* source, RoseMark mark);
+void mover(RoseObject * obj, RoseDesign * dest);
 int main(int argc, char* argv[])
 {
 
@@ -47,6 +49,7 @@ int main(int argc, char* argv[])
 		std::cout << "Error reading input file.\n";
 		return EXIT_FAILURE;
 	}
+	RoseP21Writer::preserve_eids = true;
 	des->saveAs(argv[2]);
 	RoseDesign *MainOutput = ROSE.useDesign(argv[2]);
 	if (!MainOutput)
@@ -54,35 +57,80 @@ int main(int argc, char* argv[])
 		std::cout << "Error opening output file.\n";
 		return EXIT_FAILURE;
 	}
-	std::string geoname(MainOutput->name());
-	geoname.append("_Geometry");
-	RoseDesign *geo = new RoseDesign(geoname.c_str());
-	geo->save();
-	if (!geo)
+	std::string pminame(MainOutput->name());
+	pminame.append("_PMI");
+	RoseDesign *pmi = new RoseDesign(pminame.c_str());
+	pmi->save();
+	if (!pmi)
 	{
-		std::cout << "Error opening geometry output file for writing.\n";
+		std::cout << "Error opening pmi output file for writing.\n";
 		return EXIT_FAILURE;
 	}
 	stix_tag_units(MainOutput);
 	ARMpopulate(MainOutput);
 	//#############################################################
-
 	//STModule
-	rose_compute_backptrs(MainOutput);
-	MoveGeometry(MainOutput, geo);
-	MakeReferencesAndAnchors(MainOutput, geo);
+	//rose_compute_backptrs(MainOutput);
+	RoseMark geomrk = rose_mark_begin();
+	markgeo(MainOutput,geomrk);
+	MovePMI(MainOutput, pmi,geomrk);
+	MakeReferencesAndAnchors(MainOutput, pmi);
 	update_uri_forwarding(MainOutput);
 
 	rose_empty_trash();
 
-	geo->save();
-	ARMsave(geo);
+	pmi->save();
+	ARMsave(pmi);
 	MainOutput->save();
 	ARMsave(MainOutput);
-
 	return 0;
 }
-
+void mover(RoseObject * obj, RoseDesign * dest)
+{
+    if (!obj) return;
+    if (obj->isa(ROSE_DOMAIN(RoseUnion))) mover(rose_get_nested_object(ROSE_CAST(RoseUnion, obj)),dest);
+    if (obj->isa(ROSE_DOMAIN(RoseAggregate))) for (int i = 0, sz = obj->size(); i < sz; i++) mover(obj->getObject(i),dest);
+    if (obj)
+	obj->move(dest, 0, false);
+}
+void markgeo(RoseDesign* source, RoseMark mark)
+{
+    stix_tag_asms(source);
+    StpAsmProductDefVec roots;
+    stix_find_root_products(&roots, source);
+    for (int i = 0, sz = roots.size(); i < sz; i++)
+    {
+	stp_product_definition * pd = roots[i];
+	ListOfRoseObject lst;
+	pd->findObjects(&lst,-1,false);
+	rose_mark_set(pd, mark);
+	for (int j = 0, jsz = lst.size(); j < jsz; j++)
+	{
+	    rose_mark_set(lst[j], mark);
+	}
+	StixMgrAsmProduct * pm = StixMgrAsmProduct::find(pd);
+	for (int j = 0, jsz = pm->shapes.size(); j<jsz; j++)
+	{
+	    stp_shape_representation * sr = pm->shapes[j];
+	    StixMgrAsmShapeRep* smasr = StixMgrAsmShapeRep::find(sr);
+	    StpAsmShapeDefRepVec foo = smasr->shape_def_reps;
+	    for (int k = 0, ksz = foo.size(); k < ksz; k++)
+	    {
+		printf("moving %d", foo[k]->entity_id());
+		RoseObject * pdef = rose_get_nested_object(foo[k]->definition());
+		rose_mark_set(pdef, mark);
+		rose_mark_set(foo[k], mark);
+	    }
+	    ListOfRoseObject tmp;
+	    sr->findObjects(&tmp, -1, false);
+	    rose_mark_set(sr, mark);
+	    for (int k = 0, ksz = tmp.size(); k < ksz; k++)
+	    {
+		rose_mark_set(tmp[k], mark);
+	    }
+	}
+    }
+}
 
 void addRefAndAnchor(RoseObject * obj, RoseDesign * ProdOut, RoseDesign * master, std::string dir){ //obj from output file, and master file for putting refs into
 	std::string anchor = get_guid();	//Anchor is now a guid. 1234abcd-56789-0000-0000-abcd12340000 or something like that.
@@ -178,38 +226,100 @@ void MakeReferencesAndAnchors(RoseDesign * source, RoseDesign * destination)
 	rose_compute_backptrs(source);
 	rose_compute_backptrs(destination);//Update the backpointers to prevent usedin from having errors.
 	curse.traverse(destination);
-	curse.domain(ROSE_DOMAIN(RoseObject));	//Check everything in the destination file.
-	ListOfRoseObject Parents;
+	curse.domain(ROSE_DOMAIN(RoseStructure));	//Check everything in the destination file.
 	while (obj = curse.next())
 	{
-		Parents.emptyYourself();
-		obj->usedin(NULL, NULL, &Parents);
-		if (Parents.size() == 0)
+		RoseBackPtrCursor foo;
+		foo.traverse(obj);
+		if(foo.first() == 0)
 		{
 			addRefAndAnchor(obj, destination, source);	//If an object in destination has no parents (like Batman) then we have to assume it was important presentation data and put a reference in for it.
 		}
 	}
 }
-
-void MoveGeometry(RoseDesign * source, RoseDesign * dest)
+void tomove(RoseObject* obj,RoseDesign*dest,RoseMark forbidden);
+void parsemove(RoseObject* obj, RoseDesign*dest,RoseMark forbidden);
+void MovePMI(RoseDesign * source, RoseDesign * dest,RoseMark forbidden)
 {
-	ARMCursor cur; //arm cursor
-	ARMObject *a_obj = NULL;
-	cur.traverse(source);
-	cur.domain(Workpiece::type());	//We want the geometry data, which is grouped as Workpieces in ARM.
-	ListOfRoseObject aimObjs;
-
-	while ((a_obj = cur.next()))	//a_obj is a workpiece.
+    RoseCursor cur;
+    RoseObject * obj = nullptr;
+    cur.traverse(source);
+    //Move the Draughting models (which define the PMI) and their associated data
+    cur.domain(ROSE_DOMAIN(stp_draughting_model));
+    while ((obj = cur.next()) != nullptr)
+    {
+	for (unsigned i = 0, sz = obj->attributes()->size(); i < sz; i++)
 	{
-		if (!a_obj) continue;
-		aimObjs.emptyYourself();	//aimObjs now size 0.
-		a_obj->getAIMObjects(&aimObjs);	//aimObjs now contains all the AIM objects that relate to workpiece a_obj
-		ARMresolveReferences(&aimObjs);	//aimObjs now contains the above PLUS everything that is connected to those, both parents and childrens with infinite depth.
-		unsigned i, sz;
-		for (i = 0, sz = aimObjs.size(); i < sz; i++)	//Now that we have all the workpiece stuff in a list, we have to move it to the output file.
-		{
-			auto obj = aimObjs.get(i);
-			obj->move(dest,0);
-		}
+	    RoseObject * movee = obj->getObject(obj->attributes()->get(i));
+	    if (nullptr == movee) continue;
+	    //printf("Moving property %s of %s (which is a %s)\n", obj->attributes()->get(i)->name(), obj->domain()->name(),movee->domain()->name());
+	    tomove(movee, dest,forbidden);
 	}
+	obj->move(dest, 0, false);
+	//movelist.move(dest,1,false);
+    }
+    //Move the DMIAs which point to the Draughting models we moved.
+    cur.domain(ROSE_DOMAIN(stp_draughting_model_item_association));
+    while((obj = cur.next())!=nullptr)
+    {
+	stp_draughting_model_item_association * dmia = ROSE_CAST(stp_draughting_model_item_association, obj);
+	if (dmia->used_representation()->design() == dest)
+	    tomove(dmia,dest,forbidden);
+    }
 }
+
+void tomove(RoseObject* obj,RoseDesign * dest,RoseMark forbidden)
+{
+    if (nullptr == obj) return;
+    if (rose_is_marked(obj, forbidden)) return;//Not Allowed to touch.
+    char * tst = obj->domain()->name();
+    int eid = obj->entity_id();
+    if (obj->isa(ROSE_DOMAIN(RoseAggregate)))
+    {
+	for (unsigned i = 0, sz = obj->size(); i < sz; i++)
+	{
+	    obj->move(dest, 0, false);
+	    if (nullptr == obj->getObject(i)) break;//Not a list of objects.
+	    tomove(obj->getObject(i),dest,forbidden);
+	}
+    }
+    if (obj->isa(ROSE_DOMAIN(RoseUnion)))
+    {
+	RoseObject * nestedobj= rose_get_nested_object(ROSE_CAST(RoseUnion, obj));
+	if (nullptr == nestedobj) obj->move(dest, -1, false);
+	else if (nestedobj->isa(ROSE_DOMAIN(stp_mapped_item))) return;
+	else tomove(nestedobj, dest,forbidden);
+    }
+    if (obj->isa(ROSE_DOMAIN(RoseStructure)))
+    {
+	parsemove(obj, dest,forbidden);
+    }
+}
+void parsemove(RoseObject* obj, RoseDesign* dest,RoseMark forbidden)
+{
+    if (obj->isa(ROSE_DOMAIN(stp_mapped_item)) || obj->isa(ROSE_DOMAIN(stp_representation_map))) return;
+    obj->move(dest, 0, false);
+    if (obj->isa(ROSE_DOMAIN(stp_geometric_item_specific_usage))) return;
+    if (obj->isa(ROSE_DOMAIN(stp_shape_aspect))) //need to get the GISU!
+    {
+	ListOfRoseObject users;
+	rose_compute_backptrs(obj->design());
+	obj->usedin(NULL, NULL, &users);
+	for (unsigned i = 0, sz = users.size(); i < sz; i++)
+	{
+	    RoseObject* testobj = users.getObject(i);
+	    if (testobj->isa(ROSE_DOMAIN(stp_geometric_item_specific_usage)))
+		tomove(testobj, dest,forbidden);
+	    else if (testobj->isa(ROSE_DOMAIN(stp_shape_aspect_relationship)))
+		tomove(testobj, dest,forbidden);
+	}
+	return;
+    }
+    for (unsigned i = 0, sz = obj->attributes()->size(); i < sz; i++)
+    {
+	RoseObject * tst = obj->getObject(obj->attributes()->get(i));
+	if (nullptr == tst) continue;
+	tomove(tst, dest,forbidden);
+    }
+}
+//void Remove
